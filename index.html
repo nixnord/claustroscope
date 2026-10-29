@@ -164,14 +164,15 @@
       <!-- Single Centered Upload Card -->
       <div class="bg-[#2a292a] border-2 border-[#343334] hover:border-[#50b2c0] transition-colors rounded-sm p-6 sm:p-8 flex flex-col gap-6 shadow-2xl">
         
-        <!-- Drag & Drop Area -->
-        <div 
+        <!-- Drag & Drop Area (Semantic Label for Native & Accessible File Picker) -->
+        <label 
+          for="fileInput"
           id="dropZone"
-          class="border-2 border-dashed border-[#343334] hover:border-[#50b2c0] rounded-sm p-8 text-center cursor-pointer transition-all bg-[#201e1f]/60 hover:bg-[#201e1f] relative overflow-hidden group flex flex-col items-center justify-center min-h-[200px]"
+          class="border-2 border-dashed border-[#343334] hover:border-[#50b2c0] rounded-sm p-8 text-center cursor-pointer transition-all bg-[#201e1f]/60 hover:bg-[#201e1f] relative overflow-hidden group flex flex-col items-center justify-center min-h-[200px] select-none block"
         >
-          <input type="file" id="fileInput" accept="image/*" class="hidden" />
+          <input type="file" id="fileInput" accept="image/*" class="sr-only" />
           
-          <div id="dropPrompt" class="flex flex-col items-center gap-3">
+          <div id="dropPrompt" class="flex flex-col items-center gap-3 pointer-events-none">
             <div class="w-14 h-14 rounded-full bg-[#2a292a] border-2 border-[#343334] group-hover:border-[#50b2c0] flex items-center justify-center transition-colors">
               <svg class="w-7 h-7 text-[#feefdd]/70 group-hover:text-[#50b2c0] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
@@ -184,7 +185,7 @@
           </div>
 
           <!-- Thumbnail Selected Preview -->
-          <div id="thumbContainer" class="hidden relative max-h-56 w-full flex items-center justify-center">
+          <div id="thumbContainer" class="hidden relative max-h-56 w-full flex items-center justify-center pointer-events-auto">
             <img id="thumbImg" src="" alt="Thumbnail" class="max-h-52 w-auto object-contain rounded-sm border border-[#343334]" />
             <div class="absolute bottom-2 left-2 px-2.5 py-1 rounded-sm bg-[#201e1f]/90 text-xs font-fira text-[#50b2c0] border border-[#50b2c0]/40" id="thumbMeta">
               Selected
@@ -192,13 +193,13 @@
             <button 
               id="btnClearImg" 
               type="button" 
-              class="absolute top-2 right-2 p-1.5 rounded-sm bg-[#201e1f] hover:bg-[#ff4000] text-[#feefdd] transition-colors border border-[#343334]"
+              class="absolute top-2 right-2 p-1.5 rounded-sm bg-[#201e1f] hover:bg-[#ff4000] text-[#feefdd] transition-colors border border-[#343334] cursor-pointer"
               title="Remove image"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
           </div>
-        </div>
+        </label>
 
         <!-- Quick Sample Test Buttons -->
         <div class="space-y-2">
@@ -808,12 +809,7 @@
     }
 
     // 3. Image Selection & Drag-and-Drop
-    dropZone.addEventListener('click', (e) => {
-      if (e.target !== btnClearImg && !btnClearImg.contains(e.target)) {
-        fileInput.click();
-      }
-    });
-
+    // dropZone is a <label for="fileInput">, so clicks natively activate fileInput without JS recursion.
     dropZone.addEventListener('dragover', (e) => {
       e.preventDefault();
       dropZone.classList.add('border-[#50b2c0]');
@@ -838,6 +834,7 @@
     });
 
     btnClearImg.addEventListener('click', (e) => {
+      e.preventDefault();
       e.stopPropagation();
       activeFile = null;
       fileInput.value = '';
@@ -916,35 +913,6 @@
           method: 'POST',
           body: formData,
         });
-
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({ detail: res.statusText }));
-          throw new Error(errData.detail || 'Analysis failed');
-        }
-
-        const data = await res.json();
-        currentPayload = data;
-
-        // Render results and transition view
-        renderResults(data);
-
-        // Hide splashscreen and show results
-        setTimeout(() => {
-          loadingScreen.classList.add('hidden');
-          landerScreen.classList.add('hidden');
-          resultsScreen.classList.remove('hidden');
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }, 500);
-
-      } catch (err) {
-        loadingScreen.classList.add('hidden');
-        alert(`Error executing pipeline: ${err.message}`);
-        console.error(err);
-      } finally {
-        clearInterval(timerInterval);
-        clearInterval(msgInterval);
-      }
-    });
 
         if (!res.ok) {
           const errData = await res.json().catch(() => ({ detail: res.statusText }));
@@ -1082,7 +1050,7 @@
         document.getElementById('badgeCanvasSource').innerText = 'Kaggle GPU Diffusion Canvas';
         document.getElementById('badgeCanvasSource').className = 'text-[11px] font-fira text-[#10b981]';
       } else if (data.remote_status === 'failed_fallback_to_preview') {
-        document.getElementById('badgeCanvasSource').innerText = '⚠️ Remote Tunnel Offline \u2192 Showing Local Lens Preview';
+        document.getElementById('badgeCanvasSource').innerText = '[Offline] Remote Tunnel Offline -> Showing Local Lens Preview';
         document.getElementById('badgeCanvasSource').className = 'text-[11px] font-fira text-[#faaa8d] font-bold';
       } else {
         document.getElementById('badgeCanvasSource').innerText = 'Stage 3 Optical Lens Preview';
