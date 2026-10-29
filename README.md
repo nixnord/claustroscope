@@ -78,12 +78,28 @@ The system sends the vignetted photo, warped depth map, and jittered edge lines 
 
 ---
 
-## Web Dashboard
+## Web Dashboard & Interface
 
-The application includes a single-column web interface designed for clarity:
-* **Landing Page:** Simple upload area with five one-click sample scenes (Narrow Alley, Cave Squeeze, Crawlspace, Packed Crowd, Open Park).
-* **Loading Screen:** Animated particle splashscreen with live elapsed timer while models run.
-* **Results Flow:** Single vertical scroll showing the transformed canvas with an interactive Before / After split slider, the numeric fear score and classification, eight feature progress bars, four intermediate conditioning maps, and the exact diffusion prompts used.
+The application includes a single-column web interface designed for clarity and psychological atmosphere.
+
+### 1. Landing & Upload Page
+The landing page allows users to drag and drop any photograph or select one of five pre-loaded sample scenes (Narrow Alley, Cave Squeeze, Crawlspace, Packed Crowd, Open Park). Users can optionally customize the prompt description and toggle optical lens distortion.
+
+![Landing and Upload Interface](img1.jpeg)
+
+---
+
+### 2. Interactive Analysis & Focal Anchor Detection
+Once analyzed, the dashboard presents the scene with the detected focal crosshair anchor centered on the primary subject, alongside the real-time calculated Claustrophobia Score ($C$), classification state (`OPEN`, `ENCLOSED`, or `CLAUSTROPHOBIC`), and foundational confinement metrics ($T$, $R$, and dominant source).
+
+![Interactive Results View with Original Scene](img3.jpeg)
+
+---
+
+### 3. Transformed Claustrophobic Diffusion Canvas
+An interactive Before / After split slider lets users sweep across the scene to inspect the generative transformation. Guided by Depth and Canny ControlNets, the model bends structural boundaries inward and compresses peripheral space into an intense claustrophobic canvas.
+
+![Transformed Diffusion Canvas](img4.jpeg)
 
 ---
 
