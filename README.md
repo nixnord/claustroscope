@@ -130,10 +130,49 @@ To use full Stable Diffusion rendering on a free Kaggle GPU:
 
 ---
 
+## Deploying on Vercel (Hybrid Cloud Architecture)
+
+Because Stages 1 to 3 use neural vision models (Depth Anything V2, SegFormer, YOLO11-Pose) requiring GPU or multi-gigabyte memory, you can host the interactive web dashboard on Vercel while running the primary inference engine locally on your computer forwarded via Cloudflare Tunnel.
+
+### How the Hybrid Setup Works
+```
+[ User on Vercel (claustroscope.vercel.app) ]
+                     |
+                     | (Direct API requests /api/analyze)
+                     v
+[ Cloudflare Tunnel: PRIMARY_ENGINE_URL ]
+                     |
+                     v
+[ Your Local Machine: app.py on port 8000 ]
+                     |
+                     +---> (Optional) Kaggle GPU: KAGGLE_TUNNEL_URL
+```
+
+### Steps to Deploy
+1. Start your local processing engine:
+   ```bash
+   uvicorn app:app --host 127.0.0.1 --port 8000
+   ```
+2. In a separate terminal, forward your local server to a public Cloudflare tunnel:
+   ```bash
+   cloudflared tunnel --url http://127.0.0.1:8000
+   ```
+   Copy the generated HTTPS URL (e.g. `https://random-words.trycloudflare.com`).
+3. Deploy this repository to Vercel:
+   * Import the repository on Vercel.
+   * Under Project Settings -> Environment Variables, add:
+     * `PRIMARY_ENGINE_URL`: Your forwarded Cloudflare URL (e.g. `https://random-words.trycloudflare.com`).
+     * `KAGGLE_TUNNEL_URL` (optional): Active Kaggle GPU tunnel URL.
+4. Deploy. The Vercel app will automatically connect to your forwarded local processing engine. You can also adjust or test the tunnel URL anytime via the settings gear icon in the header.
+
+---
+
 ## Repository Structure
 
 * `app.py`: FastAPI backend application and endpoints.
 * `index.html`: Web interface, comparison slider, and telemetry display.
+* `vercel.json`: Vercel project configuration.
+* `api/config.js`: Vercel Edge function providing environment variables to the client.
 * `extractors.py`: Stage 1 perception models (Depth Anything V2, SegFormer, YOLO11-Pose, OpenCV).
 * `scorer.py`: Stage 2 claustrophobia scoring formulas and parameter tables.
 * `modulators.py`: Stage 3 OpenCV spatial warps, vignettes, and lens distortion.

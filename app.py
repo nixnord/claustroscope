@@ -75,6 +75,16 @@ def health_check() -> dict[str, Any]:
         "status": "ok",
         "models_loaded": PIPELINE is not None,
         "default_kaggle_url": os.environ.get("KAGGLE_TUNNEL_URL", ""),
+        "primary_engine_url": os.environ.get("PRIMARY_ENGINE_URL", ""),
+    }
+
+
+@app.get("/api/config")
+def get_config() -> dict[str, Any]:
+    """Returns runtime configuration and tunnel URLs for frontend initialization."""
+    return {
+        "primary_engine_url": os.environ.get("PRIMARY_ENGINE_URL", "").strip(),
+        "kaggle_tunnel_url": os.environ.get("KAGGLE_TUNNEL_URL", "").strip(),
     }
 
 

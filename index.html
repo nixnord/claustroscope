@@ -117,12 +117,26 @@
         </div>
       </div>
 
-      <!-- Tunnel Status Indicator -->
-      <div id="tunnelStatusBadge" class="flex items-center gap-2 px-3 py-1 rounded-sm border border-[#343334] bg-[#2a292a] text-xs font-fira text-[#feefdd]">
-        <span id="tunnelDot" class="w-2 h-2 rounded-full bg-[#50b2c0]"></span>
-        <span id="tunnelText">Ready</span>
+      <!-- Tunnel Status Indicator & Settings -->
+      <div class="flex items-center gap-2">
+        <div id="tunnelStatusBadge" class="flex items-center gap-2 px-3 py-1 rounded-sm border border-[#343334] bg-[#2a292a] text-xs font-fira text-[#feefdd]">
+          <span id="tunnelDot" class="w-2 h-2 rounded-full bg-[#50b2c0]"></span>
+          <span id="tunnelText">Ready</span>
+        </div>
+        <button id="btnToggleEngineUrl" type="button" class="p-1.5 rounded-sm bg-[#2a292a] hover:bg-[#343334] border border-[#343334] text-[#feefdd] transition-colors" title="Configure Forwarded Engine URL">
+          <svg class="w-4 h-4 text-[#736f71] hover:text-[#50b2c0] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        </button>
       </div>
     </header>
+
+    <!-- Forwarded Engine URL Configuration Dropdown -->
+    <div id="engineUrlPanel" class="hidden w-full max-w-4xl mx-auto mb-6 p-4 rounded-sm bg-[#2a292a] border border-[#343334] flex flex-col sm:flex-row items-center gap-3">
+      <div class="flex-1 w-full">
+        <label class="block text-xs font-fira text-[#736f71] mb-1">Primary Engine URL (Cloudflare Tunnel to Local Machine):</label>
+        <input type="text" id="inputEngineUrl" placeholder="https://xxxx.trycloudflare.com (empty = direct /api)" class="w-full bg-[#201e1f] border border-[#343334] rounded-sm px-3 py-1.5 text-xs font-fira text-[#feefdd] focus:outline-none focus:border-[#50b2c0]">
+      </div>
+      <button id="btnSaveEngineUrl" type="button" class="px-4 py-2 self-end sm:self-auto rounded-sm bg-[#50b2c0] hover:bg-[#62c1cf] text-xs font-fira font-bold text-[#201e1f] transition-colors">Save & Connect</button>
+    </div>
 
     <!-- Hero Content & Purpose -->
     <main class="w-full max-w-3xl mx-auto flex-1 flex flex-col justify-center gap-8 py-6">
@@ -668,6 +682,12 @@
     let timerInterval = null;
     let currentPayload = null;
     let activeAfterSrc = "";
+    let apiBaseUrl = localStorage.getItem('claustro_engine_url') || "";
+
+    function apiUrl(endpoint) {
+      const base = (apiBaseUrl || "").replace(/\/$/, "");
+      return base ? `${base}${endpoint}` : endpoint;
+    }
 
     // DOM Elements
     const landerScreen = document.getElementById('landerScreen');
@@ -686,6 +706,11 @@
     const btnAnalyze = document.getElementById('btnAnalyze');
     const inputSubject = document.getElementById('inputSubject');
     const chkLensDistortion = document.getElementById('chkLensDistortion');
+
+    const btnToggleEngineUrl = document.getElementById('btnToggleEngineUrl');
+    const engineUrlPanel = document.getElementById('engineUrlPanel');
+    const inputEngineUrl = document.getElementById('inputEngineUrl');
+    const btnSaveEngineUrl = document.getElementById('btnSaveEngineUrl');
 
     // Slider
     const sliderWrapper = document.getElementById('sliderWrapper');
@@ -722,23 +747,65 @@
       }
     }
 
-    // 2. Initial Setup
-    window.addEventListener('DOMContentLoaded', () => {
+    // 2. Initial Setup & Engine URL Discovery
+    window.addEventListener('DOMContentLoaded', async () => {
       buildWarpBoxes();
-      // Check server health
-      fetch('/api/health')
-        .then(r => r.json())
-        .then(d => {
+
+      if (btnToggleEngineUrl) {
+        btnToggleEngineUrl.addEventListener('click', () => {
+          engineUrlPanel.classList.toggle('hidden');
+        });
+      }
+
+      if (btnSaveEngineUrl) {
+        btnSaveEngineUrl.addEventListener('click', () => {
+          apiBaseUrl = inputEngineUrl.value.trim().replace(/\/$/, '');
+          localStorage.setItem('claustro_engine_url', apiBaseUrl);
+          engineUrlPanel.classList.add('hidden');
+          checkEngineHealth();
+        });
+      }
+
+      // Check /api/config from Vercel Edge Runtime or local FastAPI
+      try {
+        const cfgRes = await fetch('/api/config');
+        if (cfgRes.ok) {
+          const cfg = await cfgRes.json();
+          if (cfg.primary_engine_url && !localStorage.getItem('claustro_engine_url')) {
+            apiBaseUrl = cfg.primary_engine_url.replace(/\/$/, '');
+          }
+        }
+      } catch (e) {
+        // Fallback to relative endpoint or stored URL
+      }
+
+      if (inputEngineUrl) {
+        inputEngineUrl.value = apiBaseUrl;
+      }
+
+      checkEngineHealth();
+    });
+
+    async function checkEngineHealth() {
+      try {
+        const res = await fetch(apiUrl('/api/health'));
+        if (res.ok) {
+          const d = await res.json();
           if (d.default_kaggle_url) {
             document.getElementById('tunnelText').innerText = 'Kaggle GPU Active';
             document.getElementById('tunnelDot').className = 'w-2 h-2 rounded-full bg-[#ff4000] animate-ping';
           } else {
-            document.getElementById('tunnelText').innerText = 'Local Preview Mode';
+            document.getElementById('tunnelText').innerText = apiBaseUrl ? 'Engine Connected' : 'Local Preview Mode';
             document.getElementById('tunnelDot').className = 'w-2 h-2 rounded-full bg-[#50b2c0]';
           }
-        })
-        .catch(() => {});
-    });
+          return;
+        }
+      } catch (err) {
+        console.warn('Engine health check failed:', err);
+      }
+      document.getElementById('tunnelText').innerText = 'Engine Offline';
+      document.getElementById('tunnelDot').className = 'w-2 h-2 rounded-full bg-[#736f71]';
+    }
 
     // 3. Image Selection & Drag-and-Drop
     dropZone.addEventListener('click', (e) => {
@@ -798,7 +865,7 @@
         const fn = btn.getAttribute('data-sample');
         try {
           btn.classList.add('opacity-50');
-          const res = await fetch(`/api/sample/${fn}`);
+          const res = await fetch(apiUrl(`/api/sample/${fn}`));
           if (!res.ok) throw new Error('Sample not found');
           const blob = await res.blob();
           const file = new File([blob], fn, { type: blob.type || 'image/jpeg' });
@@ -845,10 +912,39 @@
       formData.append('distortion_mode', 'barrel');
 
       try {
-        const res = await fetch('/api/analyze', {
+        const res = await fetch(apiUrl('/api/analyze'), {
           method: 'POST',
           body: formData,
         });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({ detail: res.statusText }));
+          throw new Error(errData.detail || 'Analysis failed');
+        }
+
+        const data = await res.json();
+        currentPayload = data;
+
+        // Render results and transition view
+        renderResults(data);
+
+        // Hide splashscreen and show results
+        setTimeout(() => {
+          loadingScreen.classList.add('hidden');
+          landerScreen.classList.add('hidden');
+          resultsScreen.classList.remove('hidden');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 500);
+
+      } catch (err) {
+        loadingScreen.classList.add('hidden');
+        alert(`Error executing pipeline: ${err.message}`);
+        console.error(err);
+      } finally {
+        clearInterval(timerInterval);
+        clearInterval(msgInterval);
+      }
+    });
 
         if (!res.ok) {
           const errData = await res.json().catch(() => ({ detail: res.statusText }));
