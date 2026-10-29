@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ClaustroScope // Claustrophobia Visualizer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chivo:wght@400;700;900&family=Doto:wght@700;900&family=Fira+Code:wght@400;500;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            chivo: ['Chivo', 'sans-serif'],
+            doto: ['Doto', 'monospace'],
+            fira: ['Fira Code', 'monospace'],
+          },
+          colors: {
+            jacobs: {
+              bg: '#201e1f',
+              card: '#2a292a',
+              cardHover: '#343334',
+              primary: '#ff4000',      // Energetic orange-red
+              secondary: '#50b2c0',    // Glowing teal
+              accent: '#faaa8d',       // Coral
+              fg: '#feefdd',           // Cream/bone text
+              muted: '#736f71',
+              border: '#343334',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #201e1f;
+      color: #feefdd;
+      font-family: 'Inter', sans-serif;
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #201e1f; }
+    ::-webkit-scrollbar-thumb { background: #343334; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #50b2c0; }
+
+    /* Box stream animation adopted from jacobsladder/frontend/src/components/LoadingTransition.tsx */
+    @keyframes boxWarp {
+      0% {
+        transform: translate3d(-10vw, 0, 0) scale(0);
+        opacity: 0;
+      }
+      20% {
+        transform: translate3d(20vw, 0, 0) scale(1.5);
+        opacity: 1;
+      }
+      50% {
+        transform: translate3d(55vw, 0, 0) scale(2);
+        opacity: 1;
+      }
+      80% {
+        transform: translate3d(85vw, 0, 0) scale(1.5);
+        opacity: 1;
+      }
+      100% {
+        transform: translate3d(115vw, 0, 0) scale(0);
+        opacity: 0;
+      }
+    }
+
+    .warp-box {
+      position: absolute;
+      width: 1rem;
+      height: 1rem;
+      border-radius: 2px;
+      animation: boxWarp linear infinite;
+    }
+
+    /* Pulse animation for crosshair */
+    @keyframes pulse-ring {
+      0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.9; }
+      50% { transform: translate(-50%, -50%) scale(1.5); opacity: 0.3; }
+      100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.9; }
+    }
+    .focal-ring {
+      animation: pulse-ring 2s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-[#ff4000] selection:text-white relative">
+
+  <!-- ========================================================================= -->
+  <!-- 1. LANDER VIEW (Initial Clean Minimal Landing Page)                       -->
+  <!-- ========================================================================= -->
+  <div id="landerScreen" class="min-h-screen flex flex-col justify-between p-6 sm:p-12 relative z-10 transition-opacity duration-500">
+    
+    <!-- Top Header -->
+    <header class="w-full max-w-4xl mx-auto flex items-center justify-between mb-8 sm:mb-12">
+      <div class="flex items-center gap-3">
+        <div class="bg-[#ff4000] text-[#201e1f] p-2.5 rounded-sm rotate-3 shadow-none">
+          <svg class="w-6 h-6 -rotate-3 text-[#201e1f]" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-2xl font-doto font-bold tracking-tight text-[#feefdd] uppercase">
+            Claustro<span class="text-[#ff4000]">Scope</span>
+          </h1>
+          <span class="text-[11px] font-fira tracking-tight text-[#50b2c0] font-bold uppercase">
+            Psychological Perception Engine
+          </span>
+        </div>
+      </div>
+
+      <!-- Tunnel Status Indicator -->
+      <div id="tunnelStatusBadge" class="flex items-center gap-2 px-3 py-1 rounded-sm border border-[#343334] bg-[#2a292a] text-xs font-fira text-[#feefdd]">
+        <span id="tunnelDot" class="w-2 h-2 rounded-full bg-[#50b2c0]"></span>
+        <span id="tunnelText">Ready</span>
+      </div>
+    </header>
+
+    <!-- Hero Content & Purpose -->
+    <main class="w-full max-w-3xl mx-auto flex-1 flex flex-col justify-center gap-8 py-6">
+      
+      <!-- Purpose Statement -->
+      <div class="space-y-4">
+        <div class="inline-flex items-center gap-2 text-[#ff4000] text-xs font-fira font-bold uppercase tracking-wider">
+          <span class="w-2 h-2 rounded-full bg-[#ff4000] animate-ping"></span>
+          Perceptual Latent Transformation
+        </div>
+
+        <h2 class="text-4xl sm:text-6xl font-chivo font-black leading-tight tracking-tight text-[#feefdd]">
+          Experience how <br/>
+          <span class="text-transparent bg-clip-text bg-gradient-to-r from-[#ff4000] via-[#faaa8d] to-[#50b2c0]">
+            claustrophobia feels.
+          </span>
+        </h2>
+
+        <p class="text-base sm:text-lg text-[#feefdd]/80 font-normal leading-relaxed max-w-2xl">
+          What happens when spaces collapse around you? Upload a photograph of any scene or room. 
+          Our perception pipeline extracts spatial enclosure, crowd compression, and shadow tension—transforming the scene into an intense visual simulation of acute claustrophobic dread.
+        </p>
+      </div>
+
+      <!-- Single Centered Upload Card -->
+      <div class="bg-[#2a292a] border-2 border-[#343334] hover:border-[#50b2c0] transition-colors rounded-sm p-6 sm:p-8 flex flex-col gap-6 shadow-2xl">
+        
+        <!-- Drag & Drop Area -->
+        <div 
+          id="dropZone"
+          class="border-2 border-dashed border-[#343334] hover:border-[#50b2c0] rounded-sm p-8 text-center cursor-pointer transition-all bg-[#201e1f]/60 hover:bg-[#201e1f] relative overflow-hidden group flex flex-col items-center justify-center min-h-[200px]"
+        >
+          <input type="file" id="fileInput" accept="image/*" class="hidden" />
+          
+          <div id="dropPrompt" class="flex flex-col items-center gap-3">
+            <div class="w-14 h-14 rounded-full bg-[#2a292a] border-2 border-[#343334] group-hover:border-[#50b2c0] flex items-center justify-center transition-colors">
+              <svg class="w-7 h-7 text-[#feefdd]/70 group-hover:text-[#50b2c0] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+            </div>
+            <div>
+              <p class="text-sm font-chivo font-bold text-[#feefdd]">Drop an image here, or <span class="text-[#50b2c0] underline">browse</span></p>
+              <p class="text-xs text-[#736f71] mt-1 font-fira">Supports JPG, PNG, WEBP (Max 15 MB)</p>
+            </div>
+          </div>
+
+          <!-- Thumbnail Selected Preview -->
+          <div id="thumbContainer" class="hidden relative max-h-56 w-full flex items-center justify-center">
+            <img id="thumbImg" src="" alt="Thumbnail" class="max-h-52 w-auto object-contain rounded-sm border border-[#343334]" />
+            <div class="absolute bottom-2 left-2 px-2.5 py-1 rounded-sm bg-[#201e1f]/90 text-xs font-fira text-[#50b2c0] border border-[#50b2c0]/40" id="thumbMeta">
+              Selected
+            </div>
+            <button 
+              id="btnClearImg" 
+              type="button" 
+              class="absolute top-2 right-2 p-1.5 rounded-sm bg-[#201e1f] hover:bg-[#ff4000] text-[#feefdd] transition-colors border border-[#343334]"
+              title="Remove image"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick Sample Test Buttons -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between text-xs font-fira text-[#736f71]">
+            <span>Or test with a sample scene:</span>
+            <span>Click to load</span>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" data-sample="testimg3.jpeg" class="btn-sample px-3 py-1.5 rounded-sm bg-[#201e1f] hover:bg-[#343334] border border-[#343334] hover:border-[#ff4000] text-xs font-fira text-[#feefdd] transition-colors">
+              🧱 Narrow Alley
+            </button>
+            <button type="button" data-sample="testimg2.jpeg" class="btn-sample px-3 py-1.5 rounded-sm bg-[#201e1f] hover:bg-[#343334] border border-[#343334] hover:border-[#ff4000] text-xs font-fira text-[#feefdd] transition-colors">
+              🕳️ Cave Squeeze
+            </button>
+            <button type="button" data-sample="testimg1.jpeg" class="btn-sample px-3 py-1.5 rounded-sm bg-[#201e1f] hover:bg-[#343334] border border-[#343334] hover:border-[#ff4000] text-xs font-fira text-[#feefdd] transition-colors">
+              🪜 Crawlspace
+            </button>
+            <button type="button" data-sample="testimg6.jpeg" class="btn-sample px-3 py-1.5 rounded-sm bg-[#201e1f] hover:bg-[#343334] border border-[#343334] hover:border-[#ff4000] text-xs font-fira text-[#feefdd] transition-colors">
+              👥 Packed Crowd
+            </button>
+            <button type="button" data-sample="testimg4.jpeg" class="btn-sample px-3 py-1.5 rounded-sm bg-[#201e1f] hover:bg-[#343334] border border-[#343334] hover:border-[#50b2c0] text-xs font-fira text-[#feefdd] transition-colors">
+              🌳 Open Park
+            </button>
+          </div>
+        </div>
+
+        <!-- Contextual Subject Prompt & Lens Toggle -->
+        <div class="pt-4 border-t border-[#343334] flex flex-col sm:flex-row items-center gap-4">
+          <div class="flex-1 w-full">
+            <label class="block text-xs font-fira text-[#736f71] mb-1">Subject Description (Optional):</label>
+            <input 
+              type="text" 
+              id="inputSubject" 
+              value="a photograph of the scene" 
+              class="w-full bg-[#201e1f] border border-[#343334] rounded-sm px-3 py-2 text-xs font-fira text-[#feefdd] focus:outline-none focus:border-[#50b2c0]"
+            />
+          </div>
+
+          <div class="flex items-center gap-2 self-end sm:self-auto pt-2 sm:pt-4">
+            <input type="checkbox" id="chkLensDistortion" checked class="w-4 h-4 rounded-sm text-[#ff4000] bg-[#201e1f] border-[#343334]">
+            <label for="chkLensDistortion" class="text-xs font-fira text-[#feefdd] cursor-pointer select-none">Optical Lens Distortion</label>
+          </div>
+        </div>
+
+        <!-- Primary Action Button -->
+        <button 
+          id="btnAnalyze" 
+          type="button" 
+          disabled
+          class="w-full py-4 rounded-sm font-fira font-bold uppercase tracking-tight text-sm transition-transform bg-gradient-to-r from-[#ff4000] via-[#faaa8d] to-[#50b2c0] text-[#201e1f] hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 shadow-[0_0_25px_rgba(255,64,0,0.3)]"
+        >
+          Initiate Perceptual Transformation &rarr;
+        </button>
+
+      </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="w-full max-w-4xl mx-auto text-center text-xs font-fira text-[#736f71] py-4">
+      ClaustroScope Engine &bull; Non-Linear Confinement Mathematics &bull; Code the Canvas
+    </footer>
+  </div>
+
+
+  <!-- ========================================================================= -->
+  <!-- 2. LOADING SPLASHSCREEN (Adopted from jacobsladder LoadingTransition.tsx) -->
+  <!-- ========================================================================= -->
+  <div 
+    id="loadingScreen" 
+    class="hidden fixed inset-0 z-50 bg-[#201e1f]/90 backdrop-blur-md overflow-hidden flex items-center justify-center transition-opacity duration-300"
+  >
+    <!-- Animated Particle Box Streams -->
+    <div id="warpBoxContainer" class="absolute inset-0 pointer-events-none"></div>
+
+    <!-- Center Glowing Modal Card -->
+    <div class="z-10 bg-[#201e1f]/95 p-8 rounded-sm border-2 border-[#50b2c0] flex flex-col items-center gap-5 shadow-[0_0_40px_rgba(80,178,192,0.3)] max-w-md w-full mx-4 text-center">
+      <div class="w-12 h-12 rounded-full border-2 border-[#50b2c0] flex items-center justify-center">
+        <svg class="animate-spin h-6 w-6 text-[#50b2c0]" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+      </div>
+
+      <div class="space-y-1">
+        <h2 id="loadingTitle" class="text-2xl font-doto font-bold text-[#feefdd] uppercase tracking-tight">
+          Transforming Space
+        </h2>
+        <p id="loadingSubtitle" class="text-[#50b2c0] font-fira tracking-tight text-xs uppercase font-bold">
+          Extracting perceptual depth & enclosure...
+        </p>
+      </div>
+
+      <!-- Live timer badge -->
+      <div class="px-3 py-1 rounded-sm bg-[#2a292a] border border-[#343334] text-xs font-fira text-[#feefdd]/80" id="splashTimer">
+        Elapsed: 0.0s
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ========================================================================= -->
+  <!-- 3. RESULTS VIEW (Strictly Single Column Vertical Scroll, No Clutter!)       -->
+  <!-- ========================================================================= -->
+  <div id="resultsScreen" class="hidden min-h-screen py-8 px-4 sm:px-6 lg:px-8 max-w-4xl w-full mx-auto flex flex-col gap-10">
+
+    <!-- Sticky Sub-Nav / Return Header -->
+    <div class="flex items-center justify-between pb-4 border-b border-[#343334] sticky top-0 bg-[#201e1f]/90 backdrop-blur z-40 pt-2">
+      <button 
+        id="btnBackToLander" 
+        type="button" 
+        class="inline-flex items-center gap-2 px-3 py-1.5 rounded-sm bg-[#2a292a] hover:bg-[#343334] border border-[#343334] text-xs font-fira font-bold text-[#feefdd] transition-colors"
+      >
+        <svg class="w-4 h-4 text-[#ff4000]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+        <span>Analyze Another Image</span>
+      </button>
+
+      <div class="flex items-center gap-3">
+        <span id="badgeResultClass" class="px-3 py-1 rounded-sm text-xs font-fira font-bold tracking-tight uppercase border">
+          --
+        </span>
+        <button 
+          id="btnExport" 
+          type="button" 
+          class="px-3 py-1.5 rounded-sm bg-[#ff4000] hover:bg-[#ff551a] text-xs font-fira font-bold text-[#201e1f] transition-transform flex items-center gap-1.5 shadow-[0_0_15px_rgba(255,64,0,0.4)]"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          <span>Export Canvas</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 1. The Transformed Visual Canvas (Hero Feature) -->
+    <section class="space-y-3">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-fira font-bold text-[#feefdd] uppercase tracking-wider flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-[#ff4000]"></span>
+          Transformed Claustrophobic Canvas
+        </h3>
+        <span id="badgeCanvasSource" class="text-[11px] font-fira text-[#50b2c0]">
+          Optical Lens Preview
+        </span>
+      </div>
+
+      <!-- Before / After Comparison Slider Container -->
+      <div id="sliderWrapper" class="relative w-full aspect-[4/3] sm:aspect-[16/10] bg-black rounded-sm overflow-hidden select-none border-2 border-[#343334]">
+        <!-- Background: Transformed Image -->
+        <img id="imgAfter" src="" alt="Transformed Canvas" class="absolute inset-0 w-full h-full object-contain" />
+
+        <!-- Foreground: Original Image with Clip Path -->
+        <div id="clipBefore" class="absolute inset-0 w-full h-full overflow-hidden" style="clip-path: inset(0 50% 0 0);">
+          <img id="imgBefore" src="" alt="Original Photograph" class="absolute inset-0 w-full h-full object-contain" />
+          
+          <!-- Focal Point Crosshair Anchor -->
+          <div id="focalCrosshair" class="hidden absolute pointer-events-none" style="left: 50%; top: 50%;">
+            <div class="w-8 h-8 rounded-full border border-[#50b2c0] focal-ring absolute -translate-x-1/2 -translate-y-1/2"></div>
+            <div class="w-3 h-3 rounded-full bg-[#50b2c0] absolute -translate-x-1/2 -translate-y-1/2 shadow-lg shadow-[#50b2c0]"></div>
+            <span class="absolute left-3 top-2 px-1.5 py-0.5 rounded-sm bg-[#201e1f]/90 text-[9px] font-fira text-[#50b2c0] whitespace-nowrap border border-[#50b2c0]/40">
+              Focal Anchor
+            </span>
+          </div>
+
+          <div class="absolute top-3 left-3 px-2 py-1 rounded-sm bg-[#201e1f]/90 text-[10px] font-fira text-[#feefdd] border border-[#343334]">
+            Original Photograph
+          </div>
+        </div>
+
+        <div class="absolute top-3 right-3 px-2 py-1 rounded-sm bg-[#201e1f]/90 text-[10px] font-fira text-[#ff4000] border border-[#343334]">
+          Claustrophobic Canvas
+        </div>
+
+        <!-- Draggable Divider Handle -->
+        <div id="sliderHandle" class="absolute top-0 bottom-0 w-1 bg-[#50b2c0] cursor-ew-resize flex items-center justify-center" style="left: 50%;">
+          <div class="w-7 h-7 rounded-full bg-[#201e1f] border-2 border-[#50b2c0] flex items-center justify-center shadow-[0_0_15px_rgba(80,178,192,0.6)]">
+            <svg class="w-3.5 h-3.5 text-[#50b2c0]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+      <p class="text-xs font-fira text-[#736f71] text-center">&larr; Drag slider to inspect spatial transformation &rarr;</p>
+    </section>
+
+    <!-- 2. Psychological Claustrophobia Scorecard -->
+    <section class="bg-[#2a292a] border-2 border-[#343334] rounded-sm p-6 sm:p-8 space-y-6">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#343334] pb-6">
+        <div>
+          <span class="text-xs font-fira uppercase text-[#736f71] font-bold">Non-Linear Claustrophobia Score</span>
+          <div class="flex items-baseline gap-3 mt-1">
+            <span id="scoreNumC" class="text-5xl font-chivo font-black text-[#feefdd]">--</span>
+            <span class="text-sm font-fira text-[#736f71]">/ 1.000</span>
+          </div>
+        </div>
+
+        <div class="flex flex-col sm:items-end gap-1">
+          <span class="text-xs font-fira text-[#736f71]">Classification State:</span>
+          <span id="scoreStateBadge" class="px-4 py-1.5 rounded-sm text-sm font-fira font-bold uppercase tracking-wider border">
+            --
+          </span>
+        </div>
+      </div>
+
+      <!-- Explanation & Confinement Sub-metrics -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 font-fira text-xs">
+        <div class="bg-[#201e1f] p-4 rounded-sm border border-[#343334]">
+          <span class="text-[#736f71] block mb-1">Physical Base Confinement (T)</span>
+          <span id="scoreValT" class="text-lg font-bold text-[#feefdd]">--</span>
+        </div>
+
+        <div class="bg-[#201e1f] p-4 rounded-sm border border-[#343334]">
+          <span class="text-[#736f71] block mb-1">Amplified Score (R)</span>
+          <span id="scoreValR" class="text-lg font-bold text-[#feefdd]">--</span>
+        </div>
+
+        <div class="bg-[#201e1f] p-4 rounded-sm border border-[#343334]">
+          <span class="text-[#736f71] block mb-1">Dominant Confinement Source</span>
+          <span id="scoreDominant" class="text-lg font-bold text-[#50b2c0] uppercase">--</span>
+        </div>
+      </div>
+
+      <!-- Explanation narrative -->
+      <div id="explanationBox" class="p-4 rounded-sm bg-[#201e1f]/70 border border-[#343334] text-xs font-fira text-[#feefdd]/80 leading-relaxed">
+        --
+      </div>
+    </section>
+
+    <!-- 3. Stage 1 Extracted Telemetry (8 Features) -->
+    <section class="bg-[#2a292a] border-2 border-[#343334] rounded-sm p-6 sm:p-8 space-y-4">
+      <div>
+        <h3 class="text-sm font-fira font-bold text-[#feefdd] uppercase tracking-wider">
+          Stage 1: Extracted Feature Telemetry
+        </h3>
+        <p class="text-xs text-[#736f71] font-fira mt-0.5">
+          Perception outputs from Depth Anything V2, SegFormer ADE20K, YOLO11-Pose, and OpenCV.
+        </p>
+      </div>
+
+      <!-- 8 Feature Progress Bars -->
+      <div class="space-y-3 font-fira text-xs pt-2">
+        
+        <!-- 1. Border Closeness -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-[#feefdd]">
+            <span class="text-[#feefdd]/80">Border Closeness (Upper & Lateral Depth)</span>
+            <span id="val_border_closeness" class="font-bold text-[#50b2c0]">0.00</span>
+          </div>
+          <div class="w-full bg-[#201e1f] h-2 rounded-sm overflow-hidden border border-[#343334]">
+            <div id="bar_border_closeness" class="h-full bg-[#50b2c0] transition-all duration-700" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <!-- 2. Wall & Ceiling Ratio -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-[#feefdd]">
+            <span class="text-[#feefdd]/80">Wall & Ceiling Ratio (Semantic Enclosure)</span>
+            <span id="val_wall_ceiling_ratio" class="font-bold text-[#ff4000]">0.00</span>
+          </div>
+          <div class="w-full bg-[#201e1f] h-2 rounded-sm overflow-hidden border border-[#343334]">
+            <div id="bar_wall_ceiling_ratio" class="h-full bg-[#ff4000] transition-all duration-700" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <!-- 3. Sky / Open Ratio -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-[#feefdd]">
+            <span class="text-[#feefdd]/80">Sky & Open Space Ratio (Tension Suppression)</span>
+            <span id="val_sky_open_ratio" class="font-bold text-[#10b981]">0.00</span>
+          </div>
+          <div class="w-full bg-[#201e1f] h-2 rounded-sm overflow-hidden border border-[#343334]">
+            <div id="bar_sky_open_ratio" class="h-full bg-[#10b981] transition-all duration-700" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <!-- 4. Crowd Density -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-[#feefdd]">
+            <span class="text-[#feefdd]/80">Crowd Density (Occluded Human Packing)</span>
+            <span id="val_crowd_density" class="font-bold text-[#faaa8d]">0.00</span>
+          </div>
+          <div class="w-full bg-[#201e1f] h-2 rounded-sm overflow-hidden border border-[#343334]">
+            <div id="bar_crowd_density" class="h-full bg-[#faaa8d] transition-all duration-700" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <!-- 5. Body Compression -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-[#feefdd]">
+            <span class="text-[#feefdd]/80">Body Compression (Torso-Normalized Pose)</span>
+            <span id="val_body_compression" class="font-bold text-[#c084fc]">0.00</span>
+          </div>
+          <div class="w-full bg-[#201e1f] h-2 rounded-sm overflow-hidden border border-[#343334]">
+            <div id="bar_body_compression" class="h-full bg-[#c084fc] transition-all duration-700" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <!-- 6. Edge Clutter -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-[#feefdd]">
+            <span class="text-[#feefdd]/80">Edge Clutter (Visual Complexity)</span>
+            <span id="val_edge_clutter" class="font-bold text-[#f59e0b]">0.00</span>
+          </div>
+          <div class="w-full bg-[#201e1f] h-2 rounded-sm overflow-hidden border border-[#343334]">
+            <div id="bar_edge_clutter" class="h-full bg-[#f59e0b] transition-all duration-700" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <!-- 7. Darkness Level -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-[#feefdd]">
+            <span class="text-[#feefdd]/80">Darkness Level (Shadow Submersion)</span>
+            <span id="val_darkness_level" class="font-bold text-[#94a3b8]">0.00</span>
+          </div>
+          <div class="w-full bg-[#201e1f] h-2 rounded-sm overflow-hidden border border-[#343334]">
+            <div id="bar_darkness_level" class="h-full bg-[#94a3b8] transition-all duration-700" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <!-- 8. Chromatic Warmth -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-[#feefdd]">
+            <span class="text-[#feefdd]/80">Chromatic Warmth (Light Sources)</span>
+            <span id="val_chromatic_warmth" class="font-bold text-[#facc15]">0.00</span>
+          </div>
+          <div class="w-full bg-[#201e1f] h-2 rounded-sm overflow-hidden border border-[#343334]">
+            <div id="bar_chromatic_warmth" class="h-full bg-[#facc15] transition-all duration-700" style="width: 0%"></div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 4. Stage 3 Conditioning Maps & Lens Warp Inspector -->
+    <section class="bg-[#2a292a] border-2 border-[#343334] rounded-sm p-6 sm:p-8 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-fira font-bold text-[#feefdd] uppercase tracking-wider">
+          Stage 3 Conditioning Maps & Optical Warp
+        </h3>
+        <span class="text-xs font-fira text-[#736f71]">Click image to expand</span>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        
+        <!-- Vignette -->
+        <div class="bg-[#201e1f] rounded-sm p-2 border border-[#343334] hover:border-[#50b2c0] transition-colors cursor-pointer" onclick="openLightbox('imgMapVignette', 'Radial Tunnel Vision Vignette')">
+          <div class="aspect-square bg-black rounded-sm overflow-hidden mb-2">
+            <img id="imgMapVignette" src="" alt="Vignette" class="w-full h-full object-contain" />
+          </div>
+          <div class="text-[11px] font-fira text-[#feefdd] font-bold">Radial Vignette</div>
+          <div id="lblVignetteInt" class="text-[10px] font-fira text-[#736f71]">I = 0.00</div>
+        </div>
+
+        <!-- Warped Depth -->
+        <div class="bg-[#201e1f] rounded-sm p-2 border border-[#343334] hover:border-[#50b2c0] transition-colors cursor-pointer" onclick="openLightbox('imgMapDepth', 'Warped Depth Map (Inward Bending)')">
+          <div class="aspect-square bg-black rounded-sm overflow-hidden mb-2">
+            <img id="imgMapDepth" src="" alt="Warped Depth" class="w-full h-full object-contain" />
+          </div>
+          <div class="text-[11px] font-fira text-[#feefdd] font-bold">Warped Depth (&kappa;)</div>
+          <div id="lblDepthKappa" class="text-[10px] font-fira text-[#736f71]">&kappa; = 0.00</div>
+        </div>
+
+        <!-- Modulated Canny -->
+        <div class="bg-[#201e1f] rounded-sm p-2 border border-[#343334] hover:border-[#50b2c0] transition-colors cursor-pointer" onclick="openLightbox('imgMapCanny', 'Modulated Canny Edges (Jittered)')">
+          <div class="aspect-square bg-black rounded-sm overflow-hidden mb-2">
+            <img id="imgMapCanny" src="" alt="Canny" class="w-full h-full object-contain" />
+          </div>
+          <div class="text-[11px] font-fira text-[#feefdd] font-bold">Modulated Canny</div>
+          <div id="lblCannyJitter" class="text-[10px] font-fira text-[#736f71]">Jitter = 0.0 px</div>
+        </div>
+
+        <!-- Lens Distortion Preview -->
+        <div class="bg-[#201e1f] rounded-sm p-2 border border-[#343334] hover:border-[#ff4000] transition-colors cursor-pointer" onclick="openLightbox('imgMapPreview', 'Optical Lens Distortion Preview')">
+          <div class="aspect-square bg-black rounded-sm overflow-hidden mb-2">
+            <img id="imgMapPreview" src="" alt="Lens Distortion Preview" class="w-full h-full object-contain" />
+          </div>
+          <div class="text-[11px] font-fira text-[#feefdd] font-bold">Lens Warp Preview</div>
+          <div id="lblOpticalK" class="text-[10px] font-fira text-[#ff4000]">k = 0.00</div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 5. Stage 4 Generative Prompts & Diffusion Parameters -->
+    <section class="bg-[#2a292a] border-2 border-[#343334] rounded-sm p-6 sm:p-8 space-y-6">
+      <div>
+        <h3 class="text-sm font-fira font-bold text-[#feefdd] uppercase tracking-wider">
+          Stage 4: Generative Prompts & Diffusion Hyperparameters
+        </h3>
+        <p class="text-xs text-[#736f71] font-fira mt-0.5">
+          Dynamically mapped weights fed into Realistic Vision V6.0 Multi-ControlNet on Kaggle.
+        </p>
+      </div>
+
+      <!-- Hyperparameters Grid -->
+      <div class="grid grid-cols-2 sm:grid-cols-6 gap-2 text-center font-fira text-xs">
+        <div class="bg-[#201e1f] p-2.5 rounded-sm border border-[#343334]">
+          <span class="text-[#736f71] block text-[10px]">&sigma; Denoise</span>
+          <span id="valDenoise" class="font-bold text-[#50b2c0]">--</span>
+        </div>
+        <div class="bg-[#201e1f] p-2.5 rounded-sm border border-[#343334]">
+          <span class="text-[#736f71] block text-[10px]">CFG Scale</span>
+          <span id="valCfg" class="font-bold text-[#50b2c0]">--</span>
+        </div>
+        <div class="bg-[#201e1f] p-2.5 rounded-sm border border-[#343334]">
+          <span class="text-[#736f71] block text-[10px]">Steps</span>
+          <span id="valSteps" class="font-bold text-[#50b2c0]">--</span>
+        </div>
+        <div class="bg-[#201e1f] p-2.5 rounded-sm border border-[#343334]">
+          <span class="text-[#736f71] block text-[10px]">Depth Scale</span>
+          <span id="valDepthScale" class="font-bold text-[#50b2c0]">--</span>
+        </div>
+        <div class="bg-[#201e1f] p-2.5 rounded-sm border border-[#343334]">
+          <span class="text-[#736f71] block text-[10px]">Edge Scale</span>
+          <span id="valEdgeScale" class="font-bold text-[#50b2c0]">--</span>
+        </div>
+        <div class="bg-[#201e1f] p-2.5 rounded-sm border border-[#343334]">
+          <span class="text-[#736f71] block text-[10px]">Lens Warp k</span>
+          <span id="valLensK" class="font-bold text-[#ff4000]">--</span>
+        </div>
+      </div>
+
+      <!-- Prompts Display -->
+      <div class="space-y-4 font-fira text-xs">
+        <div>
+          <div class="flex items-center justify-between text-[#50b2c0] mb-1 font-bold">
+            <span>Positive Prompt:</span>
+            <button type="button" onclick="copyPrompt('txtPosPrompt')" class="text-[#736f71] hover:text-[#feefdd] text-[10px]">Copy</button>
+          </div>
+          <div id="txtPosPrompt" class="p-3 bg-[#201e1f] border border-[#343334] rounded-sm text-[#feefdd]/90 leading-relaxed break-words">
+            --
+          </div>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between text-[#ff4000] mb-1 font-bold">
+            <span>Negative Prompt:</span>
+            <button type="button" onclick="copyPrompt('txtNegPrompt')" class="text-[#736f71] hover:text-[#feefdd] text-[10px]">Copy</button>
+          </div>
+          <div id="txtNegPrompt" class="p-3 bg-[#201e1f] border border-[#343334] rounded-sm text-[#736f71] leading-relaxed break-words">
+            --
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Bottom Return Button -->
+    <div class="text-center py-6">
+      <button 
+        type="button" 
+        onclick="resetToLander()" 
+        class="px-8 py-3 rounded-sm bg-[#2a292a] hover:bg-[#343334] border border-[#343334] text-sm font-fira font-bold text-[#feefdd] transition-colors"
+      >
+        &larr; Analyze Another Image
+      </button>
+    </div>
+
+  </div>
+
+
+  <!-- ========================================================================= -->
+  <!-- 4. LIGHTBOX MODAL                                                         -->
+  <!-- ========================================================================= -->
+  <div id="lightboxModal" class="hidden fixed inset-0 z-50 bg-[#201e1f]/95 backdrop-blur-md flex flex-col items-center justify-center p-4">
+    <div class="max-w-4xl w-full flex items-center justify-between pb-3">
+      <h3 id="lightboxTitle" class="text-xs font-fira uppercase text-[#feefdd] font-bold">Conditioning Map Inspector</h3>
+      <button onclick="closeLightbox()" class="p-1.5 rounded-sm bg-[#2a292a] hover:bg-[#ff4000] text-[#feefdd] transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="max-w-4xl max-h-[80vh] w-full flex items-center justify-center overflow-hidden rounded-sm bg-black border-2 border-[#343334] p-2">
+      <img id="lightboxImg" src="" alt="Enlarged map" class="max-w-full max-h-[75vh] object-contain rounded-sm" />
+    </div>
+  </div>
+
+
+  <!-- ========================================================================= -->
+  <!-- 5. INTERACTIVE CLIENT-SIDE LOGIC                                          -->
+  <!-- ========================================================================= -->
+  <script>
+    // State
+    let activeFile = null;
+    let timerInterval = null;
+    let currentPayload = null;
+    let activeAfterSrc = "";
+
+    // DOM Elements
+    const landerScreen = document.getElementById('landerScreen');
+    const loadingScreen = document.getElementById('loadingScreen');
+    const resultsScreen = document.getElementById('resultsScreen');
+    const warpBoxContainer = document.getElementById('warpBoxContainer');
+    const splashTimer = document.getElementById('splashTimer');
+    const loadingSubtitle = document.getElementById('loadingSubtitle');
+
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const dropPrompt = document.getElementById('dropPrompt');
+    const thumbContainer = document.getElementById('thumbContainer');
+    const thumbImg = document.getElementById('thumbImg');
+    const btnClearImg = document.getElementById('btnClearImg');
+    const btnAnalyze = document.getElementById('btnAnalyze');
+    const inputSubject = document.getElementById('inputSubject');
+    const chkLensDistortion = document.getElementById('chkLensDistortion');
+
+    // Slider
+    const sliderWrapper = document.getElementById('sliderWrapper');
+    const clipBefore = document.getElementById('clipBefore');
+    const sliderHandle = document.getElementById('sliderHandle');
+    const imgBefore = document.getElementById('imgBefore');
+    const imgAfter = document.getElementById('imgAfter');
+    const focalCrosshair = document.getElementById('focalCrosshair');
+    const btnBackToLander = document.getElementById('btnBackToLander');
+    const btnExport = document.getElementById('btnExport');
+
+    // 1. Generate Animated Warp Boxes (from jacobsladder/frontend/src/components/LoadingTransition.tsx)
+    function buildWarpBoxes() {
+      warpBoxContainer.innerHTML = '';
+      const colors = [
+        'rgba(80, 178, 192, 0.85)', // teal secondary
+        'rgba(255, 64, 0, 0.85)',   // orange-red primary
+        'rgba(250, 170, 141, 0.85)'  // coral accent
+      ];
+      for (let i = 0; i < 40; i++) {
+        const box = document.createElement('div');
+        box.className = 'warp-box';
+        const top = Math.random() * 100;
+        const duration = Math.random() * 0.8 + 0.6; // 0.6s to 1.4s
+        const delay = Math.random() * 0.6;
+        const color = colors[i % colors.length];
+
+        box.style.top = `${top}%`;
+        box.style.animationDuration = `${duration}s`;
+        box.style.animationDelay = `${delay}s`;
+        box.style.backgroundColor = color;
+        box.style.boxShadow = `0 0 15px ${color}`;
+        warpBoxContainer.appendChild(box);
+      }
+    }
+
+    // 2. Initial Setup
+    window.addEventListener('DOMContentLoaded', () => {
+      buildWarpBoxes();
+      // Check server health
+      fetch('/api/health')
+        .then(r => r.json())
+        .then(d => {
+          if (d.default_kaggle_url) {
+            document.getElementById('tunnelText').innerText = 'Kaggle GPU Active';
+            document.getElementById('tunnelDot').className = 'w-2 h-2 rounded-full bg-[#ff4000] animate-ping';
+          } else {
+            document.getElementById('tunnelText').innerText = 'Local Preview Mode';
+            document.getElementById('tunnelDot').className = 'w-2 h-2 rounded-full bg-[#50b2c0]';
+          }
+        })
+        .catch(() => {});
+    });
+
+    // 3. Image Selection & Drag-and-Drop
+    dropZone.addEventListener('click', (e) => {
+      if (e.target !== btnClearImg && !btnClearImg.contains(e.target)) {
+        fileInput.click();
+      }
+    });
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('border-[#50b2c0]');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('border-[#50b2c0]');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('border-[#50b2c0]');
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        handleFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files[0]) {
+        handleFile(e.target.files[0]);
+      }
+    });
+
+    btnClearImg.addEventListener('click', (e) => {
+      e.stopPropagation();
+      activeFile = null;
+      fileInput.value = '';
+      thumbContainer.classList.add('hidden');
+      dropPrompt.classList.remove('hidden');
+      btnAnalyze.disabled = true;
+    });
+
+    function handleFile(file) {
+      activeFile = file;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        thumbImg.src = e.target.result;
+        thumbContainer.classList.remove('hidden');
+        dropPrompt.classList.add('hidden');
+        document.getElementById('thumbMeta').innerText = `${file.name} (${(file.size / 1024).toFixed(0)} KB)`;
+        btnAnalyze.disabled = false;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // 4. Sample scene loader buttons
+    document.querySelectorAll('.btn-sample').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const fn = btn.getAttribute('data-sample');
+        try {
+          btn.classList.add('opacity-50');
+          const res = await fetch(`/api/sample/${fn}`);
+          if (!res.ok) throw new Error('Sample not found');
+          const blob = await res.blob();
+          const file = new File([blob], fn, { type: blob.type || 'image/jpeg' });
+          handleFile(file);
+        } catch (err) {
+          alert(`Failed to load sample: ${err.message}`);
+        } finally {
+          btn.classList.remove('opacity-50');
+        }
+      });
+    });
+
+    // 5. Trigger Transformation & Loading Splashscreen
+    btnAnalyze.addEventListener('click', async () => {
+      if (!activeFile) return;
+
+      // Show splashscreen
+      loadingScreen.classList.remove('hidden');
+
+      let startTime = performance.now();
+      timerInterval = setInterval(() => {
+        const sec = ((performance.now() - startTime) / 1000).toFixed(1);
+        splashTimer.innerText = `Elapsed: ${sec}s`;
+      }, 100);
+
+      // Cycle status messages
+      const msgs = [
+        "Stage 1: Extracting Depth Boundaries & Semantic Walls...",
+        "Stage 2: Calculating Non-Linear Tension Formula (T \u2192 R \u2192 C)...",
+        "Stage 3: Warping Latents & Inward Lens Compression...",
+        "Stage 4: Synthesizing Psychological Generative Canvas..."
+      ];
+      let msgIdx = 0;
+      const msgInterval = setInterval(() => {
+        msgIdx = (msgIdx + 1) % msgs.length;
+        loadingSubtitle.innerText = msgs[msgIdx];
+      }, 1200);
+
+      const formData = new FormData();
+      formData.append('image', activeFile);
+      formData.append('kaggle_url', ''); // Will automatically fallback to .env KAGGLE_TUNNEL_URL
+      formData.append('subject', inputSubject.value.trim() || 'a photograph of the scene');
+      formData.append('apply_distortion', chkLensDistortion.checked);
+      formData.append('distortion_mode', 'barrel');
+
+      try {
+        const res = await fetch('/api/analyze', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({ detail: res.statusText }));
+          throw new Error(errData.detail || 'Analysis failed');
+        }
+
+        const data = await res.json();
+        currentPayload = data;
+
+        // Render results and transition view
+        renderResults(data);
+
+        // Hide splashscreen and show results
+        setTimeout(() => {
+          loadingScreen.classList.add('hidden');
+          landerScreen.classList.add('hidden');
+          resultsScreen.classList.remove('hidden');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 500);
+
+      } catch (err) {
+        loadingScreen.classList.add('hidden');
+        alert(`Error executing pipeline: ${err.message}`);
+        console.error(err);
+      } finally {
+        clearInterval(timerInterval);
+        clearInterval(msgInterval);
+      }
+    });
+
+    // 6. Reset back to Lander
+    btnBackToLander.addEventListener('click', resetToLander);
+    function resetToLander() {
+      resultsScreen.classList.add('hidden');
+      landerScreen.classList.remove('hidden');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // 7. Render Telemetry & Result Data
+    function renderResults(data) {
+      const c = data.control;
+      const f = data.features;
+      const scores = c.scores;
+      const classification = c.classification;
+      const cScore = scores.claustrophobia_score_C;
+      const imgs = data.images;
+
+      // 1. Score display
+      const scoreNumC = document.getElementById('scoreNumC');
+      const scoreStateBadge = document.getElementById('scoreStateBadge');
+      const badgeResultClass = document.getElementById('badgeResultClass');
+
+      scoreNumC.innerText = cScore.toFixed(3);
+      badgeResultClass.innerText = classification;
+      scoreStateBadge.innerText = classification;
+
+      if (classification === 'CLAUSTROPHOBIC') {
+        scoreNumC.className = 'text-5xl font-chivo font-black text-[#ff4000]';
+        scoreStateBadge.className = 'px-4 py-1.5 rounded-sm text-sm font-fira font-bold uppercase tracking-wider bg-[#ff4000]/10 text-[#ff4000] border-[#ff4000] shadow-[0_0_15px_rgba(255,64,0,0.3)]';
+        badgeResultClass.className = 'px-3 py-1 rounded-sm text-xs font-fira font-bold tracking-tight uppercase bg-[#ff4000]/10 text-[#ff4000] border-[#ff4000]';
+      } else if (classification === 'ENCLOSED') {
+        scoreNumC.className = 'text-5xl font-chivo font-black text-[#faaa8d]';
+        scoreStateBadge.className = 'px-4 py-1.5 rounded-sm text-sm font-fira font-bold uppercase tracking-wider bg-[#faaa8d]/10 text-[#faaa8d] border-[#faaa8d]';
+        badgeResultClass.className = 'px-3 py-1 rounded-sm text-xs font-fira font-bold tracking-tight uppercase bg-[#faaa8d]/10 text-[#faaa8d] border-[#faaa8d]';
+      } else {
+        scoreNumC.className = 'text-5xl font-chivo font-black text-[#50b2c0]';
+        scoreStateBadge.className = 'px-4 py-1.5 rounded-sm text-sm font-fira font-bold uppercase tracking-wider bg-[#50b2c0]/10 text-[#50b2c0] border-[#50b2c0]';
+        badgeResultClass.className = 'px-3 py-1 rounded-sm text-xs font-fira font-bold tracking-tight uppercase bg-[#50b2c0]/10 text-[#50b2c0] border-[#50b2c0]';
+      }
+
+      document.getElementById('scoreValT').innerText = scores.trapping_base_T.toFixed(3);
+      document.getElementById('scoreValR').innerText = scores.raw_score_R.toFixed(3);
+      document.getElementById('scoreDominant').innerText = c.explanation?.dominant_confinement_source || 'structure';
+
+      // Explanation narrative
+      const amp = c.explanation?.amplifier_contributions || {};
+      const dominant = c.explanation?.dominant_confinement_source || 'structure';
+      let narrative = `Scene evaluated with physical trapping base T = ${scores.trapping_base_T.toFixed(3)} driven primarily by ${dominant}. `;
+      if (classification === 'CLAUSTROPHOBIC') {
+        narrative += `High structural enclosure and edge clutter amplify psychological raw score to R = ${scores.raw_score_R.toFixed(3)}, placing the scene deep in the acute claustrophobia regime (C = ${cScore.toFixed(3)}).`;
+      } else if (classification === 'ENCLOSED') {
+        narrative += `Moderate enclosure produces intermediate claustrophobic pressure (C = ${cScore.toFixed(3)}).`;
+      } else {
+        narrative += `Abundant open geometry or light suppresses claustrophobic tension to safe threshold (C = ${cScore.toFixed(3)}).`;
+      }
+      document.getElementById('explanationBox').innerText = narrative;
+
+      // 2. Stage 1 Feature Bars
+      const setBar = (id, val) => {
+        const v = typeof val === 'number' ? val : 0;
+        const b = document.getElementById(`bar_${id}`);
+        const l = document.getElementById(`val_${id}`);
+        if (b) b.style.width = `${Math.min(100, Math.max(0, v * 100))}%`;
+        if (l) l.innerText = v.toFixed(2);
+      };
+      setBar('border_closeness', f.depth_features?.border_closeness);
+      setBar('wall_ceiling_ratio', f.semantic_features?.wall_ceiling_ratio);
+      setBar('sky_open_ratio', f.semantic_features?.sky_open_ratio);
+      setBar('crowd_density', f.pose_features?.crowd_density);
+      setBar('body_compression', f.pose_features?.body_compression);
+      setBar('edge_clutter', f.cv_features?.edge_clutter);
+      setBar('darkness_level', f.cv_features?.darkness_level);
+      setBar('chromatic_warmth', f.cv_features?.chromatic_warmth);
+
+      // 3. Stage 3 Maps
+      if (imgs.vignette) document.getElementById('imgMapVignette').src = imgs.vignette;
+      if (imgs.depth) document.getElementById('imgMapDepth').src = imgs.depth;
+      if (imgs.canny) document.getElementById('imgMapCanny').src = imgs.canny;
+      if (imgs.preview) document.getElementById('imgMapPreview').src = imgs.preview;
+
+      const mod = c.modulation_parameters || {};
+      document.getElementById('lblVignetteInt').innerText = `I = ${(mod.vignette_intensity || 0).toFixed(2)}`;
+      document.getElementById('lblDepthKappa').innerText = `\u03BA = ${(mod.depth_warp_kappa || 0).toFixed(2)}`;
+      document.getElementById('lblCannyJitter').innerText = `Jitter = ${(mod.edge_jitter_amplitude || 0).toFixed(1)} px`;
+      document.getElementById('lblOpticalK').innerText = `k = ${(mod.lens_distortion_k || 0).toFixed(3)}`;
+
+      // 4. Diffusion Hyperparameters & Prompts
+      const diff = c.diffusion_hyperparameters || {};
+      document.getElementById('valDenoise').innerText = diff.denoising_strength?.toFixed(2) || '--';
+      document.getElementById('valCfg').innerText = diff.cfg_scale?.toFixed(1) || '--';
+      document.getElementById('valSteps').innerText = diff.num_inference_steps || '--';
+      document.getElementById('valDepthScale').innerText = diff.controlnet_depth_scale?.toFixed(2) || '--';
+      document.getElementById('valEdgeScale').innerText = diff.controlnet_edge_scale?.toFixed(2) || '--';
+      document.getElementById('valLensK').innerText = mod.lens_distortion_k?.toFixed(3) || '--';
+
+      document.getElementById('txtPosPrompt').innerText = c.prompts?.positive || '--';
+      document.getElementById('txtNegPrompt').innerText = c.prompts?.negative || '--';
+
+      // 5. Canvas Images & Split Slider
+      imgBefore.src = imgs.original;
+      activeAfterSrc = imgs.final_canvas || imgs.preview || imgs.vignette;
+      imgAfter.src = activeAfterSrc;
+
+      if (data.remote_status === 'success') {
+        document.getElementById('badgeCanvasSource').innerText = 'Kaggle GPU Diffusion Canvas';
+        document.getElementById('badgeCanvasSource').className = 'text-[11px] font-fira text-[#10b981]';
+      } else if (data.remote_status === 'failed_fallback_to_preview') {
+        document.getElementById('badgeCanvasSource').innerText = '⚠️ Remote Tunnel Offline \u2192 Showing Local Lens Preview';
+        document.getElementById('badgeCanvasSource').className = 'text-[11px] font-fira text-[#faaa8d] font-bold';
+      } else {
+        document.getElementById('badgeCanvasSource').innerText = 'Stage 3 Optical Lens Preview';
+        document.getElementById('badgeCanvasSource').className = 'text-[11px] font-fira text-[#50b2c0]';
+      }
+
+      // Focal crosshair
+      const fp = c.focal_point;
+      if (fp && typeof fp.x === 'number' && typeof fp.y === 'number') {
+        focalCrosshair.style.left = `${fp.x * 100}%`;
+        focalCrosshair.style.top = `${fp.y * 100}%`;
+        focalCrosshair.classList.remove('hidden');
+      } else {
+        focalCrosshair.classList.add('hidden');
+      }
+
+      // Export button
+      btnExport.onclick = () => {
+        const a = document.createElement('a');
+        a.download = `claustroscope_${data.run_id}.png`;
+        a.href = activeAfterSrc;
+        a.click();
+      };
+    }
+
+    // 8. Split Slider Drag Interaction
+    let isDragging = false;
+    function updateSlider(xPos) {
+      const rect = sliderWrapper.getBoundingClientRect();
+      let pct = ((xPos - rect.left) / rect.width) * 100;
+      pct = Math.max(0, Math.min(100, pct));
+      clipBefore.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
+      sliderHandle.style.left = `${pct}%`;
+    }
+
+    sliderWrapper.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      updateSlider(e.clientX);
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (isDragging) updateSlider(e.clientX);
+    });
+
+    window.addEventListener('mouseup', () => {
+      isDragging = false;
+    });
+
+    sliderWrapper.addEventListener('touchstart', (e) => {
+      isDragging = true;
+      if (e.touches[0]) updateSlider(e.touches[0].clientX);
+    }, { passive: true });
+
+    window.addEventListener('touchmove', (e) => {
+      if (isDragging && e.touches[0]) updateSlider(e.touches[0].clientX);
+    }, { passive: true });
+
+    window.addEventListener('touchend', () => {
+      isDragging = false;
+    });
+
+    // 9. Lightbox Modal
+    const lightboxModal = document.getElementById('lightboxModal');
+    const lightboxImg = document.getElementById('lightboxImg');
+    const lightboxTitle = document.getElementById('lightboxTitle');
+
+    function openLightbox(imgId, title) {
+      const img = document.getElementById(imgId);
+      if (!img || !img.src) return;
+      lightboxImg.src = img.src;
+      lightboxTitle.innerText = title;
+      lightboxModal.classList.remove('hidden');
+    }
+
+    function closeLightbox() {
+      lightboxModal.classList.add('hidden');
+    }
+
+    lightboxModal.addEventListener('click', (e) => {
+      if (e.target === lightboxModal) closeLightbox();
+    });
+
+    // 10. Copy Prompt Helper
+    function copyPrompt(id) {
+      const text = document.getElementById(id).innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('Prompt copied to clipboard!');
+      });
+    }
+  </script>
+</body>
+</html>
