@@ -772,8 +772,11 @@
         const cfgRes = await fetch('/api/config');
         if (cfgRes.ok) {
           const cfg = await cfgRes.json();
-          if (cfg.primary_engine_url && !localStorage.getItem('claustro_engine_url')) {
+          if (cfg.primary_engine_url) {
             apiBaseUrl = cfg.primary_engine_url.replace(/\/$/, '');
+            localStorage.setItem('claustro_engine_url', apiBaseUrl);
+          } else {
+            apiBaseUrl = localStorage.getItem('claustro_engine_url') || '';
           }
         }
       } catch (e) {

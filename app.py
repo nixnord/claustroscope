@@ -36,15 +36,21 @@ SAMPLE_DIR = Path(__file__).resolve().parent / "test"
 async def lifespan(app: FastAPI):
     global PIPELINE
     TEMP_ROOT.mkdir(parents=True, exist_ok=True)
-    enable_unified = os.environ.get("ENABLE_UNIFIED_DIFFUSION", "0").lower() in {"1", "true", "yes"} or \
-                     os.environ.get("USE_LOCAL_DIFFUSION", "0").lower() in {"1", "true", "yes"}
-    if enable_unified:
-        print("[ClaustroScope] Pre-loading Unified Pipeline (Stages 1-4 with DreamShaper 8 Multi-ControlNet)...")
-        PIPELINE = ClaustrophobiaPipeline(enable_local_diffusion=True)
+    primary_url = os.environ.get("PRIMARY_ENGINE_URL", "").strip()
+    if primary_url:
+        print(f"[ClaustroScope] PRIMARY_ENGINE_URL configured: {primary_url}")
+        print("[ClaustroScope] Running in Remote Gateway Mode (All perception & diffusion models run on Kaggle GPU).")
+        PIPELINE = None
     else:
-        print("[ClaustroScope] Pre-loading Stage 1-3 perception models into memory...")
-        PIPELINE = ClaustrophobiaPipeline()
-    print("[ClaustroScope] Pipeline ready to serve requests.")
+        enable_unified = os.environ.get("ENABLE_UNIFIED_DIFFUSION", "0").lower() in {"1", "true", "yes"} or \
+                         os.environ.get("USE_LOCAL_DIFFUSION", "0").lower() in {"1", "true", "yes"}
+        if enable_unified:
+            print("[ClaustroScope] Pre-loading Unified Pipeline (Stages 1-4 with DreamShaper 8 Multi-ControlNet)...")
+            PIPELINE = ClaustrophobiaPipeline(enable_local_diffusion=True)
+        else:
+            print("[ClaustroScope] Pre-loading Stage 1-3 perception models into memory...")
+            PIPELINE = ClaustrophobiaPipeline()
+        print("[ClaustroScope] Pipeline ready to serve requests.")
     yield
     shutil.rmtree(TEMP_ROOT, ignore_errors=True)
 
@@ -77,14 +83,17 @@ def _encode_b64(filepath: str | Path | None) -> str | None:
 @app.get("/api/health")
 def health_check() -> dict[str, Any]:
     """Returns server status, model readiness, and default tunnel URL."""
-    unified = getattr(PIPELINE, "enable_local_diffusion", False) if PIPELINE else False
+    primary_url = os.environ.get("PRIMARY_ENGINE_URL", "").strip()
+    unified = getattr(PIPELINE, "enable_local_diffusion", False) if PIPELINE else bool(primary_url)
+    device_label = "remote (Kaggle GPU)" if primary_url else str(getattr(PIPELINE, "device", "unknown"))
     return {
         "status": "ok",
-        "models_loaded": PIPELINE is not None,
+        "models_loaded": PIPELINE is not None or bool(primary_url),
         "unified_mode": unified,
-        "device": str(getattr(PIPELINE, "device", "unknown")),
+        "remote_gateway": bool(primary_url),
+        "device": device_label,
         "default_kaggle_url": os.environ.get("KAGGLE_TUNNEL_URL", ""),
-        "primary_engine_url": os.environ.get("PRIMARY_ENGINE_URL", ""),
+        "primary_engine_url": primary_url,
     }
 
 
@@ -146,6 +155,28 @@ def analyze_image(
     - Applies non-linear claustrophobic lens distortion to final canvas and preview.
     - If kaggle_url is provided, calls remote Stage 4 diffusion on Kaggle GPU.
     """
+    primary_url = os.environ.get("PRIMARY_ENGINE_URL", "").strip().rstrip("/")
+    if primary_url and PIPELINE is None:
+        try:
+            import httpx
+            image_bytes = image.file.read()
+            files = {"image": (image.filename or "input.jpg", image_bytes, image.content_type or "image/jpeg")}
+            data = {
+                "subject": subject,
+                "apply_distortion": str(apply_distortion).lower(),
+                "distortion_mode": distortion_mode,
+            }
+            with httpx.Client(timeout=180.0) as client:
+                resp = client.post(f"{primary_url}/api/analyze", data=data, files=files)
+                if resp.status_code != 200:
+                    raise HTTPException(status_code=resp.status_code, detail=resp.text)
+                return resp.json()
+        except HTTPException:
+            raise
+        except Exception as exc:
+            traceback.print_exc()
+            raise HTTPException(status_code=502, detail=f"Failed to forward to remote Kaggle GPU at {primary_url}: {exc}") from exc
+
     if PIPELINE is None:
         raise HTTPException(status_code=503, detail="Models are still initializing.")
 
