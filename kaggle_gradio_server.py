@@ -41,6 +41,7 @@ pipe = StableDiffusionControlNetImg2ImgPipeline.from_pretrained(
 # 3. Configure DPM++ 2M Karras Scheduler
 pipe.scheduler = DPMSolverMultistepScheduler.from_config(
     pipe.scheduler.config,
+    algorithm_type="dpmsolver++",
     use_karras_sigmas=True,
 )
 try:

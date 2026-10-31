@@ -111,6 +111,7 @@ class ClaustrophobiaPipeline:
 
     pipe.scheduler = DPMSolverMultistepScheduler.from_config(
         pipe.scheduler.config,
+        algorithm_type="dpmsolver++",
         use_karras_sigmas=True,
     )
     try:

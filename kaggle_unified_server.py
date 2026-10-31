@@ -27,6 +27,7 @@ from __future__ import annotations
 import asyncio
 import atexit
 import base64
+from contextlib import asynccontextmanager
 import os
 from pathlib import Path
 import re
@@ -177,23 +178,10 @@ def encode_b64(filepath: str | Path | None) -> str | None:
 
 
 # ==============================================================================
-# FastAPI Application Definition
+# FastAPI Application Definition (Lifespan Lifecycle)
 # ==============================================================================
-app = FastAPI(
-    title="ClaustroScope Unified Engine",
-    description="Unified 4-Stage Claustrophobia Visualizer on Kaggle GPU",
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-@app.on_event("startup")
-async def startup_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
   global PIPELINE
   TEMP_ROOT.mkdir(parents=True, exist_ok=True)
   print("\n" + "=" * 70)
@@ -227,11 +215,24 @@ async def startup_event():
     )
   print("[ClaustroScope Unified Engine] Server is ready to process requests.\n")
 
+  yield
 
-@app.on_event("shutdown")
-async def shutdown_event():
   shutil.rmtree(TEMP_ROOT, ignore_errors=True)
   cleanup_tunnel()
+
+
+app = FastAPI(
+    title="ClaustroScope Unified Engine",
+    description="Unified 4-Stage Claustrophobia Visualizer on Kaggle GPU",
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/api/health")
