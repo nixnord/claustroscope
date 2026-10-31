@@ -200,7 +200,9 @@ class FeatureExtractor:
     def _load_pose(self):
         if self._pose is None:
             from ultralytics import YOLO
-            self._pose = YOLO(POSE_MODEL_ID)
+            local_weights = Path(__file__).resolve().parent / POSE_MODEL_ID
+            model_target = str(local_weights) if local_weights.exists() else POSE_MODEL_ID
+            self._pose = YOLO(model_target)
         return self._pose
 
     # ── 3.1 depth ──────────────────────────────────────────────────────────

@@ -36,9 +36,15 @@ SAMPLE_DIR = Path(__file__).resolve().parent / "test"
 async def lifespan(app: FastAPI):
     global PIPELINE
     TEMP_ROOT.mkdir(parents=True, exist_ok=True)
-    print("Pre-loading Stage 1-3 perception models into memory...")
-    PIPELINE = ClaustrophobiaPipeline()
-    print("Claustrophobia perception pipeline ready.")
+    enable_unified = os.environ.get("ENABLE_UNIFIED_DIFFUSION", "0").lower() in {"1", "true", "yes"} or \
+                     os.environ.get("USE_LOCAL_DIFFUSION", "0").lower() in {"1", "true", "yes"}
+    if enable_unified:
+        print("[ClaustroScope] Pre-loading Unified Pipeline (Stages 1-4 with DreamShaper 8 Multi-ControlNet)...")
+        PIPELINE = ClaustrophobiaPipeline(enable_local_diffusion=True)
+    else:
+        print("[ClaustroScope] Pre-loading Stage 1-3 perception models into memory...")
+        PIPELINE = ClaustrophobiaPipeline()
+    print("[ClaustroScope] Pipeline ready to serve requests.")
     yield
     shutil.rmtree(TEMP_ROOT, ignore_errors=True)
 
@@ -71,9 +77,12 @@ def _encode_b64(filepath: str | Path | None) -> str | None:
 @app.get("/api/health")
 def health_check() -> dict[str, Any]:
     """Returns server status, model readiness, and default tunnel URL."""
+    unified = getattr(PIPELINE, "enable_local_diffusion", False) if PIPELINE else False
     return {
         "status": "ok",
         "models_loaded": PIPELINE is not None,
+        "unified_mode": unified,
+        "device": str(getattr(PIPELINE, "device", "unknown")),
         "default_kaggle_url": os.environ.get("KAGGLE_TUNNEL_URL", ""),
         "primary_engine_url": os.environ.get("PRIMARY_ENGINE_URL", ""),
     }

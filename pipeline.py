@@ -63,9 +63,63 @@ class ClaustrophobiaPipeline:
       self,
       device: str | None = None,
       kaggle_url: str | None = None,
+      enable_local_diffusion: bool = False,
   ):
-    self.extractor = FeatureExtractor(device=device)
+    import torch
+
+    self.device = torch.device(
+        device or ("cuda" if torch.cuda.is_available() else "cpu")
+    )
+    self.extractor = FeatureExtractor(device=str(self.device))
     self.kaggle_url = kaggle_url or os.environ.get("KAGGLE_TUNNEL_URL")
+    self.enable_local_diffusion = enable_local_diffusion
+    self.diffusion_pipe = None
+
+    if enable_local_diffusion:
+      self._load_diffusion_models()
+
+  def _load_diffusion_models(self) -> None:
+    """Loads Multi-ControlNet Stable Diffusion (DreamShaper 8) into GPU memory."""
+    import torch
+    from diffusers import (
+        ControlNetModel,
+        DPMSolverMultistepScheduler,
+        StableDiffusionControlNetImg2ImgPipeline,
+    )
+
+    dtype = torch.float16 if self.device.type == "cuda" else torch.float32
+    print(f"[{self.device}] Loading Multi-ControlNet adapters (Depth & Canny)...")
+    controlnets = [
+        ControlNetModel.from_pretrained(
+            "lllyasviel/control_v11f1p_sd15_depth",
+            torch_dtype=dtype,
+        ),
+        ControlNetModel.from_pretrained(
+            "lllyasviel/control_v11p_sd15_canny",
+            torch_dtype=dtype,
+        ),
+    ]
+
+    base_model_id = "Lykon/dreamshaper-8"
+    print(f"[{self.device}] Loading Base Checkpoint: {base_model_id}...")
+    pipe = StableDiffusionControlNetImg2ImgPipeline.from_pretrained(
+        base_model_id,
+        controlnet=controlnets,
+        torch_dtype=dtype,
+        safety_checker=None,
+    ).to(self.device)
+
+    pipe.scheduler = DPMSolverMultistepScheduler.from_config(
+        pipe.scheduler.config,
+        use_karras_sigmas=True,
+    )
+    try:
+      pipe.enable_xformers_memory_efficient_attention()
+    except Exception:
+      pipe.enable_attention_slicing()
+
+    self.diffusion_pipe = pipe
+    print("Multi-ControlNet Diffusion Pipeline loaded and ready in memory.")
 
   def run(
       self,
@@ -176,7 +230,75 @@ class ClaustrophobiaPipeline:
       cv2.imwrite(preview_path, vignette_img)
 
     final_canvas_path = None
-    if active_url:
+    if self.diffusion_pipe is not None:
+      print(
+          f"[{stem}] Stage 4: Executing in-process Multi-ControlNet Diffusion (DreamShaper 8)..."
+      )
+      try:
+        from PIL import Image
+
+        diff_params = control_payload["diffusion_hyperparameters"]
+        prompts = control_payload["prompts"]
+
+        base_rgb = cv2.cvtColor(vignette_img, cv2.COLOR_BGR2RGB)
+        base_pil = Image.fromarray(base_rgb)
+        depth_pil = Image.fromarray(warped_depth).convert("RGB")
+        canny_pil = Image.fromarray(modulated_canny).convert("RGB")
+
+        w, h = base_pil.size
+        max_dim = 768
+        if max(w, h) > max_dim:
+          s = max_dim / max(w, h)
+          w_t, h_t = int(round(w * s)), int(round(h * s))
+        else:
+          w_t, h_t = w, h
+        w_adj, h_adj = (w_t // 8) * 8, (h_t // 8) * 8
+
+        base_input = base_pil.resize((w_adj, h_adj), Image.Resampling.LANCZOS)
+        depth_input = depth_pil.resize((w_adj, h_adj), Image.Resampling.NEAREST)
+        canny_input = canny_pil.resize((w_adj, h_adj), Image.Resampling.NEAREST)
+
+        output = self.diffusion_pipe(
+            prompt=prompts["positive"],
+            negative_prompt=prompts["negative"],
+            image=base_input,
+            control_image=[depth_input, canny_input],
+            strength=float(diff_params["denoising_strength"]),
+            guidance_scale=float(diff_params["cfg_scale"]),
+            controlnet_conditioning_scale=[
+                float(diff_params["controlnet_depth_scale"]),
+                float(diff_params["controlnet_edge_scale"]),
+            ],
+            num_inference_steps=int(diff_params["num_inference_steps"]),
+        ).images[0]
+
+        output_bgr = cv2.cvtColor(np.array(output), cv2.COLOR_RGB2BGR)
+        if (w, h) != (w_adj, h_adj):
+          output_bgr = cv2.resize(output_bgr, (w, h), interpolation=cv2.INTER_LANCZOS4)
+
+        canvas_file = str(out_dir / f"{stem}_final_canvas.png")
+        if apply_lens_distortion:
+          distort_final_canvas(
+              output_bgr,
+              control_payload,
+              output_path=canvas_file,
+              mode=distortion_mode,
+          )
+          print(f"[{stem}] Lens-distorted generative canvas saved to {canvas_file}")
+        else:
+          cv2.imwrite(canvas_file, output_bgr)
+          print(f"[{stem}] Final generative canvas saved to {canvas_file}")
+        final_canvas_path = canvas_file
+      except Exception as e:
+        print(
+            f"[{stem}] Warning: In-process diffusion failed ({type(e).__name__}: {e}). "
+            "Falling back to local Stage 3 optical preview.",
+            file=sys.stderr,
+        )
+        if os.environ.get("DEBUG_DIFFUSION"):
+          traceback.print_exc()
+
+    elif active_url:
       print(
           f"[{stem}] Stage 4: Triggering remote diffusion inference on Kaggle"
           " worker..."
@@ -261,9 +383,18 @@ def main():
       default="barrel",
       help="Lens distortion mode (default: barrel)",
   )
+  ap.add_argument(
+      "--local-diffusion",
+      action="store_true",
+      help="Run local Multi-ControlNet diffusion with DreamShaper 8 on GPU",
+  )
   args = ap.parse_args()
 
-  pipeline = ClaustrophobiaPipeline(device=args.device, kaggle_url=args.url)
+  pipeline = ClaustrophobiaPipeline(
+      device=args.device,
+      kaggle_url=args.url,
+      enable_local_diffusion=args.local_diffusion,
+  )
   res = pipeline.run(
       image_path=args.image,
       output_dir=args.output_dir,

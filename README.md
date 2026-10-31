@@ -90,10 +90,10 @@ Before sending data to the image generator, OpenCV functions warp the guiding ma
 * **Barrel Lens Distortion:** Applies non-linear optical bowing that pulls walls into a fishbowl dome and adds subtle peripheral chromatic color splitting when C >= 0.35.
 
 ### Stage 4: Generative Multi-ControlNet Diffusion
-The system sends the vignetted photo, warped depth map, and jittered edge lines to a Stable Diffusion v1.5 model (Realistic Vision v6.0) guided by two ControlNet adapters (Depth and Canny):
+The system passes the vignetted photo, warped depth map, and jittered edge lines to a Stable Diffusion v1.5 model (DreamShaper 8) guided by two ControlNet adapters (Depth and Canny):
 * Diffusion parameters (denoising strength, guidance scale, steps, and prompt weights) scale dynamically with score C.
 * Generates an expressive visual canvas reflecting internal psychological dread.
-* Can run locally for fast optical previews (under 0.5 seconds) or connect to a remote Kaggle GPU worker for full diffusion rendering.
+* Can run in unified GPU mode directly inside Kaggle, locally on workstation GPU, or fallback to fast optical preview.
 
 ---
 
@@ -106,9 +106,9 @@ The application features a single-column vertical web interface designed for cla
 
 ---
 
-## Deployment Architecture
+## Deployment Architecture: Unified Kaggle GPU + Vercel Frontend
 
-ClaustroScope uses a multi-tier hybrid deployment topology that distributes workloads across the best-suited hardware environments.
+ClaustroScope unifies the complete end-to-end processing pipeline—feature extraction, scoring, conditioning, DreamShaper 8 Multi-ControlNet diffusion, and barrel lens distortion—into a single high-performance engine hosted on a Kaggle GPU (T4 or P100), connected to the interactive frontend hosted on Vercel.
 
 ```
 +-------------------------------------------------------------------------+
@@ -117,7 +117,7 @@ ClaustroScope uses a multi-tier hybrid deployment topology that distributes work
 +-------------------------------------------------------------------------+
        |                                                   |
        | 1. GET /api/config                                | 2. Direct POST /api/analyze
-       |    (Edge discovery)                               |    (Bypasses Vercel limits)
+       |    (Reads PRIMARY_ENGINE_URL)                     |    (Bypasses Vercel limits)
        v                                                   v
 +-------------------------------+       +---------------------------------+
 |       VERCEL EDGE TIER        |       |       CLOUDFLARE TUNNEL         |
@@ -126,147 +126,109 @@ ClaustroScope uses a multi-tier hybrid deployment topology that distributes work
 +-------------------------------+                          |
                                                            v
                                         +---------------------------------+
-                                        |      PRIMARY ENGINE TIER        |
-                                        |  Local Workstation (Port 8000)  |
-                                        |  - FastAPI (app.py)             |
-                                        |  - Stage 1: Vision Models       |
+                                        |    UNIFIED KAGGLE GPU ENGINE    |
+                                        |  Kaggle Notebook (T4 16GB GPU)  |
+                                        |  - FastAPI (kaggle_unified_srv) |
+                                        |  - Stage 1: Perception Models   |
                                         |  - Stage 2: Claustro Scoring    |
                                         |  - Stage 3: Spatial Warping     |
-                                        +---------------------------------+
-                                                           |
-                                                           | (Optional Remote Call)
-                                                           v
-                                        +---------------------------------+
-                                        |     GENERATIVE WORKER TIER      |
-                                        |  Remote Kaggle GPU (T4 16GB)    |
-                                        |  - Gradio Server                |
-                                        |  - Stage 4: Multi-ControlNet    |
-                                        |  - Realistic Vision SD1.5       |
+                                        |  - Stage 4: DreamShaper 8 SD    |
+                                        |  - Multi-ControlNet (Depth/Edge)|
+                                        |  - Barrel Lens Distortion       |
                                         +---------------------------------+
 ```
 
 ### Why This Architecture Was Chosen
 
-1. **Bypasses Serverless Platform Limitations:**
-   Standard serverless hosting providers like Vercel have hard constraints:
-   * Request body size is limited to 4.5 MB on standard tiers.
-   * Execution timeout is 10 to 60 seconds.
-   * Serverless execution environments lack GPU hardware and cannot run multi-gigabyte PyTorch models (Depth Anything V2, SegFormer, and YOLO11-Pose require ~2.2 GB of memory).
-   By decoupling the web presentation layer from the compute engine, the browser fetches engine endpoints directly via secure HTTPS tunnels.
+1. **Zero Local Hardware Requirement:**
+   The entire inference pipeline runs on Kaggle's free GPU instances (16 GB VRAM). Users and hackathon evaluators do not need an expensive local GPU to experience full generative diffusion.
 
-2. **Direct Browser-to-Engine Communication:**
-   When the user opens the Vercel site, the frontend automatically queries `/api/config` to read `PRIMARY_ENGINE_URL`. All heavy file uploads and inference requests are transmitted directly between the user's browser and the primary processing engine.
+2. **Unified In-Process Execution:**
+   By co-locating Stages 1 through 4 inside a single process on the Kaggle GPU, intermediate images (vignette, warped depth, modulated edges) are passed directly in GPU memory to the DreamShaper 8 Multi-ControlNet pipeline, avoiding slow network hops.
 
-3. **In-Memory Model Caching:**
-   The primary processing engine initializes the neural network models once during startup inside FastAPI's application lifespan context. Models remain resident in GPU/RAM, reducing Stage 1 to 3 execution time to ~0.35 seconds per request.
+3. **Bypasses Serverless Platform Limits:**
+   Vercel enforces a 4.5 MB request body limit and a 10 to 60-second function timeout. In this architecture, Vercel serves the static frontend and lightweight edge discovery route (`/api/config`), while heavy image uploads and model inferences flow directly between the user browser and Kaggle via Cloudflare Tunnel.
 
-4. **Ephemeral Request Isolation:**
-   Each analysis request executes inside an isolated directory (`/tmp/claustrophobia_web_runs/<uuid>`). Artifacts are converted into Base64 data representations for the frontend response, and temporary disk files are immediately cleaned up.
-
-5. **Fault-Tolerant Tiering:**
-   If the remote Kaggle diffusion worker is offline or experiences network delays, the primary engine automatically catches the error and returns the local Stage 3 optical distortion preview. The web client continues to function seamlessly without crashing.
+4. **Automated Tunnel Setup:**
+   The unified server script automatically provisions `cloudflared` on Linux, launches a public HTTPS tunnel to port 8000, and prints the exact live URL in the notebook output.
 
 ---
 
-## Deployment Playbook
+## Running on Kaggle (Step-by-Step Playbook)
 
-### Option 1: Vercel Hybrid Cloud Deployment (Recommended)
+### Step 1: Open Kaggle Notebook with GPU
+1. Go to [kaggle.com](https://www.kaggle.com) and create a new notebook.
+2. Under **Notebook Options** (right sidebar), set **Accelerator** to **GPU T4 x 2** or **GPU P100**.
+3. Ensure **Internet** is toggled **ON**.
 
-This setup gives you a public web application hosted on Vercel backed by your local GPU for fast inference.
+### Step 2: Cell 1 — Clone Repository & Install Dependencies
+Run this in the first notebook cell:
 
-#### Prerequisites
-* Node.js and npm (or GitHub integration with Vercel)
-* Cloudflare Tunnel CLI (`cloudflared`) installed on your local workstation
-* Python virtual environment with dependencies installed
-
-#### Step 1: Start the Local Primary Engine
 ```bash
-cd claustroscope
-source venv/bin/activate
-uvicorn app:app --host 0.0.0.0 --port 8000
+!git clone https://github.com/nixnord/claustroscope.git /kaggle/working/claustroscope
+%cd /kaggle/working/claustroscope
+!pip install -q -r requirements.txt
 ```
 
-#### Step 2: Forward Port 8000 via Cloudflare Tunnel
-In a second terminal:
+### Step 3: Cell 2 — Launch Unified Server
+Run this in the second notebook cell:
+
 ```bash
-cloudflared tunnel --url http://127.0.0.1:8000
+!python kaggle_unified_server.py
 ```
-Note the generated HTTPS URL (for example: `https://example-subdomain.trycloudflare.com`).
 
-#### Step 3: Deploy to Vercel
-1. Import this repository in your Vercel dashboard.
-2. In **Project Settings** > **Environment Variables**, define:
-   * `PRIMARY_ENGINE_URL`: Your Cloudflare tunnel URL from Step 2 (e.g., `https://example-subdomain.trycloudflare.com`).
-   * `KAGGLE_TUNNEL_URL` (optional): Active Kaggle GPU tunnel URL if running Stage 4 diffusion.
-3. Click **Deploy**.
+*(You can also directly copy and paste the code from `kaggle_unified_server.py` into Cell 2 and run it).*
 
-The Vercel site is now live. You can also manually inspect or change the engine URL at any time using the gear icon in the top-right corner of the website header.
+### Step 4: Connect to Vercel Frontend
+When the server starts, it will output a banner with a live public URL:
+
+```
+================================================================================
+TUNNEL ONLINE & READY
+PUBLIC URL: https://something-random.trycloudflare.com
+================================================================================
+```
+
+1. Copy the `https://...trycloudflare.com` URL.
+2. In your Vercel project dashboard:
+   * Go to **Settings** > **Environment Variables**.
+   * Set `PRIMARY_ENGINE_URL` to your Cloudflare URL.
+   * Click Save and Redeploy.
+3. Open your Vercel website (or visit the Cloudflare URL directly in your browser). The status indicator in the header will show **Kaggle GPU Unified Engine** in green.
 
 ---
 
-### Option 2: Standalone Local Deployment
+## Alternative Deployment Options
 
-To run both the backend server and frontend on your local machine:
+### Standalone Local Deployment
 
-1. Clone the repository:
+To run both backend server and frontend locally on your machine:
+
+1. Clone and install dependencies:
    ```bash
    git clone https://github.com/nixnord/claustroscope.git
    cd claustroscope
-   ```
-
-2. Create and activate a virtual environment:
-   ```bash
    python3 -m venv venv
    source venv/bin/activate
-   ```
-
-3. Install dependencies:
-   ```bash
    pip install -r requirements.txt
    ```
 
-4. Start the server:
+2. Start the local server:
    ```bash
    uvicorn app:app --host 0.0.0.0 --port 8000
    ```
 
-5. Open your browser and navigate to:
-   ```
-   http://localhost:8000
-   ```
+3. Open `http://localhost:8000` in your browser.
 
 ---
 
-### Option 3: Hugging Face Spaces (Containerized Cloud Hosting)
+### Containerized Cloud Hosting (Hugging Face Spaces)
 
 The repository includes a production `Dockerfile` configured for Hugging Face Spaces (CPU Basic 16 GB RAM or ZeroGPU):
 
-1. Create a new Space on [Hugging Face Spaces](https://huggingface.co/new-space).
-2. Choose **Docker** as the SDK and select **Blank template**.
-3. Push this repository to your Space Git remote:
-   ```bash
-   git remote add space https://huggingface.co/spaces/<username>/<space-name>
-   git push space main
-   ```
-4. Hugging Face will build the container, install system libraries (`libgl1`, `libglib2.0-0`), configure non-root user permissions, and bind to port `7860`.
-
----
-
-### Option 4: Remote Kaggle GPU Generative Worker
-
-To enable Stage 4 generative diffusion rendering using a free Kaggle T4 GPU:
-
-1. Create a Kaggle notebook with **GPU T4 x2** enabled.
-2. Copy and execute `kaggle_gradio_server.py` in the notebook.
-3. The script will download Realistic Vision v6.0 and ControlNet weights, then print a public Cloudflare tunnel URL:
-   ```
-   Running on public URL: https://xxxx.trycloudflare.com
-   ```
-4. Add this URL to your `.env` file or export it as an environment variable:
-   ```env
-   KAGGLE_TUNNEL_URL=https://xxxx.trycloudflare.com
-   ```
-5. If running on Vercel, set `KAGGLE_TUNNEL_URL` in your Vercel Environment Variables.
+1. Create a Space on Hugging Face Spaces using the **Docker** template.
+2. Push this repository to your Space Git remote.
+3. Hugging Face builds the image and exposes the app on port `7860`.
 
 ---
 
@@ -274,24 +236,26 @@ To enable Stage 4 generative diffusion rendering using a free Kaggle T4 GPU:
 
 | Variable | Description | Default |
 | :--- | :--- | :--- |
-| `PRIMARY_ENGINE_URL` | Public URL of the primary inference engine (FastAPI) | `""` (uses local origin `/`) |
-| `KAGGLE_TUNNEL_URL` | Public URL of the remote Kaggle GPU Gradio diffusion worker | `""` (falls back to local optical preview) |
+| `PRIMARY_ENGINE_URL` | Public URL of the primary engine (FastAPI / Kaggle Cloudflare Tunnel) | `""` (uses local origin `/`) |
+| `KAGGLE_TUNNEL_URL` | Public URL of remote worker if running split worker topology | `""` |
+| `ENABLE_UNIFIED_DIFFUSION` | Set to `1` to run local in-process DreamShaper 8 diffusion in `app.py` | `0` |
 
 ---
 
 ## Repository Structure
 
+* `kaggle_unified_server.py`: Complete unified server script for Kaggle GPU with automated Cloudflare tunnel.
 * `app.py`: FastAPI backend server managing model lifecycles and analysis routes.
 * `index.html`: Web interface featuring single-column vertical layout, loading animation, and results telemetry.
 * `vercel.json`: Vercel configuration for clean URL routing.
 * `api/config.js`: Vercel Edge Function providing dynamic environment configuration to the browser.
+* `pipeline.py`: Four-stage orchestrator supporting both in-process and remote diffusion.
 * `extractors.py`: Stage 1 feature extractors (Depth Anything V2, SegFormer, YOLO11-Pose, OpenCV).
 * `scorer.py`: Stage 2 claustrophobia formula calculations, classification, and prompt generation.
 * `modulators.py`: Stage 3 OpenCV spatial warps, radial vignettes, and barrel lens distortion.
-* `pipeline.py`: Stage 4 orchestrator connecting Stages 1-3 to the Stage 4 diffusion client.
-* `client_pipeline.py`: Asynchronous bridge client communicating with the remote Kaggle worker.
-* `kaggle_gradio_server.py`: Remote server script for Multi-ControlNet Stable Diffusion inference.
+* `client_pipeline.py`: Asynchronous bridge client communicating with remote Gradio workers.
+* `kaggle_gradio_server.py`: Standalone Gradio diffusion worker script.
 * `run_tests.py`: Automated verification test suite.
-* `requirements.txt`: Python package dependencies.
+* `requirements.txt`: Python package dependencies including diffusers and accelerate.
 * `Dockerfile`: Container definition for Hugging Face Spaces or containerized cloud hosting.
 * `test/`: Sample input photographs covering open, enclosed, and claustrophobic scenes.

@@ -792,7 +792,10 @@
         const res = await fetch(apiUrl('/api/health'));
         if (res.ok) {
           const d = await res.json();
-          if (d.default_kaggle_url) {
+          if (d.unified_mode) {
+            document.getElementById('tunnelText').innerText = 'Kaggle GPU Unified Engine';
+            document.getElementById('tunnelDot').className = 'w-2 h-2 rounded-full bg-[#10b981] animate-ping';
+          } else if (d.default_kaggle_url) {
             document.getElementById('tunnelText').innerText = 'Kaggle GPU Active';
             document.getElementById('tunnelDot').className = 'w-2 h-2 rounded-full bg-[#ff4000] animate-ping';
           } else {
