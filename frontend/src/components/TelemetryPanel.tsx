@@ -158,15 +158,27 @@ export function TelemetryPanel({
         </div>
 
         {/* Psychological Narrative Explanation */}
-        {control.explanation && (
-          <div className="p-4 rounded-sm bg-[#201e1f]/80 border border-[#343334] text-xs font-fira text-[#feefdd]/90 leading-relaxed">
-            <div className="flex items-center gap-1.5 text-[#50b2c0] font-bold uppercase mb-1">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Perceptual Diagnostics</span>
+        {(() => {
+          const explanationText =
+            control.narrative_explanation ||
+            (typeof control.explanation === "string"
+              ? control.explanation
+              : typeof control.explanation === "object" && control.explanation !== null
+              ? `Scene evaluated with physical trapping base T = ${scores.trapping_base_T.toFixed(3)} driven primarily by ${control.explanation.dominant_confinement_source || "structure"}.`
+              : null);
+
+          if (!explanationText) return null;
+
+          return (
+            <div className="p-4 rounded-sm bg-[#201e1f]/80 border border-[#343334] text-xs font-fira text-[#feefdd]/90 leading-relaxed">
+              <div className="flex items-center gap-1.5 text-[#50b2c0] font-bold uppercase mb-1">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Perceptual Diagnostics</span>
+              </div>
+              {explanationText}
             </div>
-            {control.explanation}
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* 2. Stage 1 Extracted Telemetry (8 Features) */}

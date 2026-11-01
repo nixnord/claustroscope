@@ -243,7 +243,12 @@ export function ConditioningTabs({ images, control }: ConditioningTabsProps) {
                 <span>Positive Prompt:</span>
                 <button
                   type="button"
-                  onClick={() => handleCopy(prompts?.positive_prompt || "", true)}
+                  onClick={() =>
+                    handleCopy(
+                      prompts?.positive_prompt || prompts?.positive || "",
+                      true
+                    )
+                  }
                   className="text-[#736f71] hover:text-[#feefdd] text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
                 >
                   {copiedPos ? (
@@ -260,7 +265,7 @@ export function ConditioningTabs({ images, control }: ConditioningTabsProps) {
                 </button>
               </div>
               <div className="p-3.5 bg-[#201e1f] border border-[#343334] rounded-sm text-[#feefdd]/90 leading-relaxed break-words text-xs">
-                {prompts?.positive_prompt || "--"}
+                {prompts?.positive_prompt || prompts?.positive || "--"}
               </div>
             </div>
 
@@ -269,7 +274,12 @@ export function ConditioningTabs({ images, control }: ConditioningTabsProps) {
                 <span>Negative Prompt:</span>
                 <button
                   type="button"
-                  onClick={() => handleCopy(prompts?.negative_prompt || "", false)}
+                  onClick={() =>
+                    handleCopy(
+                      prompts?.negative_prompt || prompts?.negative || "",
+                      false
+                    )
+                  }
                   className="text-[#736f71] hover:text-[#feefdd] text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
                 >
                   {copiedNeg ? (
@@ -286,7 +296,7 @@ export function ConditioningTabs({ images, control }: ConditioningTabsProps) {
                 </button>
               </div>
               <div className="p-3.5 bg-[#201e1f] border border-[#343334] rounded-sm text-[#736f71] leading-relaxed break-words text-xs">
-                {prompts?.negative_prompt || "--"}
+                {prompts?.negative_prompt || prompts?.negative || "--"}
               </div>
             </div>
           </div>

@@ -70,19 +70,33 @@ export interface DiffusionHyperparameters {
 }
 
 export interface Prompts {
-  positive_prompt: string;
-  negative_prompt: string;
+  positive?: string;
+  negative?: string;
+  positive_prompt?: string;
+  negative_prompt?: string;
+  regime?: string;
+}
+
+export interface ExplanationDetails {
+  structural_term?: number;
+  crowd_term?: number;
+  dominant_confinement_source?: string;
+  sky_suppression_factor?: number;
+  amplifier_contributions?: Record<string, number>;
+  amplifier_multiplier?: number;
+  person_detected?: boolean;
 }
 
 export interface ControlPayload {
   scores: AnalysisScores;
-  classification: "OPEN" | "MODERATE" | "CONFINED" | "CLAUSTROPHOBIC";
+  classification: "OPEN" | "MODERATE" | "CONFINED" | "ENCLOSED" | "CLAUSTROPHOBIC";
   focal_point: FocalPoint;
-  dominant_confinement_factor: string;
+  dominant_confinement_factor?: string;
   modulation_parameters: ModulationParameters;
   diffusion_hyperparameters: DiffusionHyperparameters;
   prompts: Prompts;
-  explanation?: string;
+  explanation?: ExplanationDetails | string;
+  narrative_explanation?: string;
 }
 
 export interface AnalysisImages {
