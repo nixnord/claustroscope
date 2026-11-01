@@ -1,0 +1,17 @@
+
+> frontend@0.1.0 lint
+> eslint
+
+
+D:\hackathon\neurathon\round2\jacobsladder\frontend\src\app\dashboard\agents\page.tsx
+   4:55  warning  'Hash' is defined but never used          @typescript-eslint/no-unused-vars
+  11:9   error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\hackathon\neurathon\round2\jacobsladder\frontend\src\app\page.tsx
+  107:159  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+
+D:\hackathon\neurathon\round2\jacobsladder\frontend\src\components\ParticleBackground.tsx
+  19:34  warning  'container' is defined but never used  @typescript-eslint/no-unused-vars
+
+Γ£û 4 problems (2 errors, 2 warnings)
+

@@ -1,4 +1,4 @@
-# Ignore all markdown files except README.md
+# Ignore all markdown files except essential documentation
 *.md
 !README.md
 
@@ -8,6 +8,11 @@ __pycache__/
 *$py.class
 *.so
 .Python
+
+# Next.js and Node dependencies
+node_modules/
+.next/
+out/
 
 # Virtual environments
 venv/
