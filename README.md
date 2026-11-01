@@ -1,5 +1,5 @@
 # ClaustroScope
-
+https://attended-bernard-bradford-non.trycloudflare.com/
 ClaustroScope is an artificial intelligence pipeline that evaluates how claustrophobic an image looks and regenerates it into a psychologically distorted canvas reflecting the state of mind of someone trapped inside.
 
 If a photograph shows an open place (like a park or beach), the pipeline preserves its natural perspective. If a photograph shows an enclosed, crowded, or dark space (like a crawlspace, cave squeeze, narrow alley, or packed subway), the pipeline bends the walls inward, darkens the outer margins into tunnel vision, and uses generative diffusion to recreate the feeling of acute confinement.
